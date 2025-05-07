@@ -92,6 +92,7 @@ executable('pwaccessd',
            pwaccessd_c,
            include_directories : inc,
            dependencies : [libsystemd],
+           install_dir : libexecdir,
            install : true)
 
 subdir('units')
