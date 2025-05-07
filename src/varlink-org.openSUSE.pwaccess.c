@@ -33,7 +33,7 @@ static SD_VARLINK_DEFINE_METHOD(
 		SD_VARLINK_FIELD_COMMENT("shadow entry"),
                 SD_VARLINK_DEFINE_OUTPUT_BY_TYPE(shadow, ShadowEntry, SD_VARLINK_NULLABLE),
 		SD_VARLINK_FIELD_COMMENT("If all data got replied (depends on UID)"),
-                SD_VARLINK_DEFINE_OUTPUT(Complete, SD_VARLINK_BOOL, 0),
+                SD_VARLINK_DEFINE_OUTPUT(Complete, SD_VARLINK_BOOL, SD_VARLINK_NULLABLE),
 		SD_VARLINK_FIELD_COMMENT("If call succeeded"),
                 SD_VARLINK_DEFINE_OUTPUT(Success, SD_VARLINK_BOOL, 0),
                 SD_VARLINK_FIELD_COMMENT("Error Message"),

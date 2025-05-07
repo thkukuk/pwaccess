@@ -112,8 +112,8 @@ pwaccess_get_user_record(int64_t uid, const char *user, struct passwd **ret_pw, 
     { "Success",    SD_JSON_VARIANT_BOOLEAN, sd_json_dispatch_stdbool, offsetof(struct user_record, success), 0 },
     { "ErrorMsg",   SD_JSON_VARIANT_STRING,  sd_json_dispatch_string,  offsetof(struct user_record, error), 0 },
     { "Complete",   SD_JSON_VARIANT_BOOLEAN, sd_json_dispatch_stdbool, offsetof(struct user_record, complete), 0 },
-    { "passwd",     SD_JSON_VARIANT_OBJECT,  sd_json_dispatch_variant, offsetof(struct user_record, content_passwd), 0 },
-    { "shadow",     SD_JSON_VARIANT_OBJECT,  sd_json_dispatch_variant, offsetof(struct user_record, content_shadow), 0 },
+    { "passwd",     SD_JSON_VARIANT_OBJECT,  sd_json_dispatch_variant, offsetof(struct user_record, content_passwd), SD_JSON_NULLABLE },
+    { "shadow",     SD_JSON_VARIANT_OBJECT,  sd_json_dispatch_variant, offsetof(struct user_record, content_shadow), SD_JSON_NULLABLE },
     {}
   };
   _cleanup_(sd_varlink_unrefp) sd_varlink *link = NULL;
@@ -170,12 +170,12 @@ pwaccess_get_user_record(int64_t uid, const char *user, struct passwd **ret_pw, 
   _cleanup_(struct_passwd_freep) struct passwd *pw = calloc(1, sizeof(struct passwd)); /* XXX check NULL */
   static const sd_json_dispatch_field dispatch_passwd_table[] = {
     { "name",   SD_JSON_VARIANT_STRING, sd_json_dispatch_string, offsetof(struct passwd, pw_name),   SD_JSON_MANDATORY },
-    { "passwd", SD_JSON_VARIANT_STRING, sd_json_dispatch_string, offsetof(struct passwd, pw_passwd), 0 },
+    { "passwd", SD_JSON_VARIANT_STRING, sd_json_dispatch_string, offsetof(struct passwd, pw_passwd), SD_JSON_NULLABLE },
     { "UID",    SD_JSON_VARIANT_INTEGER, sd_json_dispatch_int,   offsetof(struct passwd, pw_uid),    SD_JSON_MANDATORY },
     { "GID",    SD_JSON_VARIANT_INTEGER, sd_json_dispatch_int,   offsetof(struct passwd, pw_gid),    SD_JSON_MANDATORY },
-    { "GECOS",  SD_JSON_VARIANT_STRING, sd_json_dispatch_string, offsetof(struct passwd, pw_gecos),  0 },
-    { "dir",    SD_JSON_VARIANT_STRING, sd_json_dispatch_string, offsetof(struct passwd, pw_dir),    0 },
-    { "shell",  SD_JSON_VARIANT_STRING, sd_json_dispatch_string, offsetof(struct passwd, pw_shell),  0 },
+    { "GECOS",  SD_JSON_VARIANT_STRING, sd_json_dispatch_string, offsetof(struct passwd, pw_gecos),  SD_JSON_NULLABLE },
+    { "dir",    SD_JSON_VARIANT_STRING, sd_json_dispatch_string, offsetof(struct passwd, pw_dir),    SD_JSON_NULLABLE },
+    { "shell",  SD_JSON_VARIANT_STRING, sd_json_dispatch_string, offsetof(struct passwd, pw_shell),  SD_JSON_NULLABLE },
     {}
   };
 
@@ -187,19 +187,19 @@ pwaccess_get_user_record(int64_t uid, const char *user, struct passwd **ret_pw, 
     }
 
   _cleanup_(struct_shadow_freep) struct spwd *sp = NULL;
-  if (p.content_shadow)
+  if (!sd_json_variant_is_null(p.content_shadow))
     {
       sp = calloc(1, sizeof(struct spwd)); /* XXX check NULL */
       static const sd_json_dispatch_field dispatch_shadow_table[] = {
 	{ "name",   SD_JSON_VARIANT_STRING, sd_json_dispatch_string, offsetof(struct spwd, sp_namp),   SD_JSON_MANDATORY },
-	{ "passwd", SD_JSON_VARIANT_STRING, sd_json_dispatch_string, offsetof(struct spwd, sp_pwdp),   0 },
-	{ "lstchg", SD_JSON_VARIANT_INTEGER, sd_json_dispatch_int64,   offsetof(struct spwd, sp_lstchg), 0 },
-	{ "min",    SD_JSON_VARIANT_INTEGER, sd_json_dispatch_int64,   offsetof(struct spwd, sp_min),    0 },
-	{ "max",    SD_JSON_VARIANT_INTEGER, sd_json_dispatch_int64,   offsetof(struct spwd, sp_max),    0 },
-	{ "warn",   SD_JSON_VARIANT_INTEGER, sd_json_dispatch_int64,   offsetof(struct spwd, sp_warn),   0 },
-	{ "inact",  SD_JSON_VARIANT_INTEGER, sd_json_dispatch_int64,   offsetof(struct spwd, sp_inact),  0 },
-	{ "expire", SD_JSON_VARIANT_INTEGER, sd_json_dispatch_int64,   offsetof(struct spwd, sp_expire), 0 },
-	{ "flag",   SD_JSON_VARIANT_INTEGER, sd_json_dispatch_int64,   offsetof(struct spwd, sp_flag),   0 },
+	{ "passwd", SD_JSON_VARIANT_STRING, sd_json_dispatch_string, offsetof(struct spwd, sp_pwdp),   SD_JSON_NULLABLE },
+	{ "lstchg", SD_JSON_VARIANT_INTEGER, sd_json_dispatch_int64, offsetof(struct spwd, sp_lstchg), 0 },
+	{ "min",    SD_JSON_VARIANT_INTEGER, sd_json_dispatch_int64, offsetof(struct spwd, sp_min),    0 },
+	{ "max",    SD_JSON_VARIANT_INTEGER, sd_json_dispatch_int64, offsetof(struct spwd, sp_max),    0 },
+	{ "warn",   SD_JSON_VARIANT_INTEGER, sd_json_dispatch_int64, offsetof(struct spwd, sp_warn),   0 },
+	{ "inact",  SD_JSON_VARIANT_INTEGER, sd_json_dispatch_int64, offsetof(struct spwd, sp_inact),  0 },
+	{ "expire", SD_JSON_VARIANT_INTEGER, sd_json_dispatch_int64, offsetof(struct spwd, sp_expire), 0 },
+	{ "flag",   SD_JSON_VARIANT_INTEGER, sd_json_dispatch_int64, offsetof(struct spwd, sp_flag),   0 },
 	{}
       };
 

@@ -264,6 +264,8 @@ vl_method_get_user_record(sd_varlink *link, sd_json_variant *parameters,
       return r;
     }
 
+  log_msg(LOG_DEBUG, "GetUserRecord(%li,%s)", p.uid, strna(p.name));
+
   if (p.uid == -1 && p.name == NULL)
     {
       log_msg(LOG_ERR, "GetUserRecord request: no UID nor user name specified");
@@ -301,6 +303,8 @@ vl_method_get_user_record(sd_varlink *link, sd_json_variant *parameters,
      and result is not the one of the calling user */
   if (peer_uid != 0 && pw->pw_uid != peer_uid)
     {
+      log_msg(LOG_DEBUG, "GetUserRecord: peer UID not 0 and UID not equal to peer UID (%li,%li)",
+	      peer_uid, pw->pw_uid);
       pw->pw_passwd = NULL;
       complete = false;
       /* no shadow entries for others */
@@ -352,6 +356,7 @@ vl_method_get_user_record(sd_varlink *link, sd_json_variant *parameters,
 	}
     }
 
+  /* XXX Only add "non-NULL" entries */
   return sd_varlink_replybo(link, SD_JSON_BUILD_PAIR_BOOLEAN("Success", true),
 			    SD_JSON_BUILD_PAIR_BOOLEAN("Complete", complete),
 			    SD_JSON_BUILD_PAIR_VARIANT("passwd", passwd),
