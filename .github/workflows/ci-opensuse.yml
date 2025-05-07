@@ -1,0 +1,49 @@
+name: openSUSE build & test
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: registry.opensuse.org/opensuse/tumbleweed:latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Install devel packages
+      run: |
+        zypper ref
+        zypper --non-interactive in --no-recommends meson gcc libeconf-devel systemd-devel valgrind
+
+    - name: Setup meson
+      run: meson setup build --auto-features=enabled
+
+    - name: Compile code
+      run: meson compile -v -C build
+
+#    - name: Run tests
+#      run: meson test -v -C build
+
+  sanitizer:
+    runs-on: ubuntu-latest
+    container: registry.opensuse.org/opensuse/tumbleweed:latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Install devel packages
+      run: |
+        zypper ref
+        zypper --non-interactive in --no-recommends meson gcc libeconf-devel systemd-devel valgrind
+
+    - name: Setup meson
+      run: meson setup build --auto-features=enabled -Db_sanitize=address,undefined
+
+    - name: Compile code
+      run: meson compile -v -C build
+
+#    - name: Run tests
+#      run: meson test -v -C build
+
+
+# meson test -v -C build --wrap='valgrind --leak-check=full --show-leak-kinds=all --error-exitcode=1'

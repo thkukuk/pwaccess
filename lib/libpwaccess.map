@@ -1,0 +1,9 @@
+LIBPWACCESS_0.1 {
+  global:
+	pwaccess_get_user_record;
+	struct_passwd_freep;
+	struct_passwd_free; 
+	struct_shadow_freep;
+	struct_shadow_free;
+  local: *;
+};

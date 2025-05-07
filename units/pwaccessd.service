@@ -1,0 +1,30 @@
+[Unit]
+Description=pwaccess daemon
+Documentation=man:pwaccessd(8)
+
+[Service]
+Type=notify
+Environment="PWACCESSD_OPTS="
+EnvironmentFile=-/etc/default/pwaccessd
+ExecStart=/usr/libexec/pwaccessd -s $PWACCESSD_OPTS
+IPAddressDeny=any
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+NoNewPrivileges=yes
+PrivateDevices=yes
+PrivateNetwork=yes
+PrivateTmp=yes
+ProtectClock=yes
+ProtectControlGroups=yes
+ProtectHome=yes
+ProtectKernelLogs=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+ProtectProc=invisible
+ProtectSystem=strict
+RestrictRealtime=true
+ReadWritePaths=/run/pwaccess /etc
+RestrictAddressFamilies=AF_UNIX
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
