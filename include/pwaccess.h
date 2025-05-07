@@ -6,6 +6,8 @@
 #include <shadow.h>
 #include <stdint.h>
 
+#define PWACCESS_IS_NOT_RUNNING(r) (r == -ECONNREFUSED || r == -ENOENT || r == -ECONNRESET || r == -EACCES)
+
 extern struct passwd *struct_passwd_free(struct passwd *var);
 extern void struct_passwd_freep(struct passwd **var);
 
