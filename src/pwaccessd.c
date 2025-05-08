@@ -278,10 +278,11 @@ vl_method_get_user_record(sd_varlink *link, sd_json_variant *parameters,
       log_msg(LOG_ERR, "GetUserRecord request: UID and user name specified");
       return sd_varlink_errorbo(link, "org.openSUSE.pwaccess.InvalidParameter",
 				SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
-				SD_JSON_BUILD_PAIR_STRING("ErrorMsg", "UID and name name specified"));
+				SD_JSON_BUILD_PAIR_STRING("ErrorMsg", "UID and user name specified"));
     }
 
   struct passwd *pw = NULL;
+  errno = 0; /* to find out if getpwuid/getpwnam succeed and there is no entry of if there was an error */
   if (p.uid != -1)
     pw = getpwuid(p.uid);
   else
@@ -289,14 +290,37 @@ vl_method_get_user_record(sd_varlink *link, sd_json_variant *parameters,
 
   if (pw == NULL)
     {
-      /* XXX check errno */
+      if (errno == 0)
+	{
+	  log_msg(LOG_INFO, "User (%ld|%s) not found", p.uid, strna(p.name));
+	  return sd_varlink_errorbo(link, "org.openSUSE.pwaccess.NoEntryFound",
+				    SD_JSON_BUILD_PAIR_BOOLEAN("Success", false));
+	}
+      else
+	{
+	  _cleanup_free_ char *error = NULL;
+
+	  if (asprintf(&error, "getpwnam() failed: %m") < 0)
+	    error = NULL;
+	  log_msg(LOG_ERR, "%s", error?error:"Out of Memory");
+	  return sd_varlink_errorbo(link, "org.openSUSE.pwaccess.InternalError",
+				    SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
+				    SD_JSON_BUILD_PAIR_STRING("ErrorMsg", error?error:"Out of Memory"));
+	}
     }
 
+  errno = 0;
   struct spwd *sp = getspnam(pw->pw_name);
-
-  if (sp == NULL)
+  if (sp == NULL && errno != 0)
     {
-      /* XXX check errno */
+      _cleanup_free_ char *error = NULL;
+
+      if (asprintf(&error, "getspnam() failed: %m") < 0)
+	error = NULL;
+      log_msg(LOG_ERR, "%s", error?error:"Out of Memory");
+      return sd_varlink_errorbo(link, "org.openSUSE.pwaccess.InternalError",
+				SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
+				SD_JSON_BUILD_PAIR_STRING("ErrorMsg", error?error:"Out of Memory"));
     }
 
   /* Don't return password if query does not come from root
