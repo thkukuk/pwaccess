@@ -151,6 +151,8 @@ pwaccess_get_user_record(int64_t uid, const char *user, struct passwd **ret_pw, 
 
   if (error_id && strlen(error_id) > 0)
     {
+      int retval = -EIO;
+
       if (error)
 	{
 	  if (p.error)
@@ -158,7 +160,11 @@ pwaccess_get_user_record(int64_t uid, const char *user, struct passwd **ret_pw, 
 	  else
 	    *error = strdup(error_id); /* XXX NULL ckeck */
 	}
-      return -EIO;
+
+      if (streq(error_id, "org.openSUSE.pwaccess.NoEntryFound"))
+	retval = -ENOENT;
+
+      return retval;
     }
 
   if (p.content_passwd == NULL)
