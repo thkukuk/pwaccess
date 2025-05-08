@@ -235,6 +235,7 @@ vl_method_get_user_record(sd_varlink *link, sd_json_variant *parameters,
 {
   _cleanup_(sd_json_variant_unrefp) sd_json_variant *passwd = NULL;
   _cleanup_(sd_json_variant_unrefp) sd_json_variant *shadow = NULL;
+  _cleanup_(sd_json_variant_unrefp) sd_json_variant *result = NULL;
   _cleanup_(parameters_free) struct parameters p = {
     .uid = -1,
     .name = NULL,
@@ -346,7 +347,7 @@ vl_method_get_user_record(sd_varlink *link, sd_json_variant *parameters,
   if (r < 0)
     {
       _cleanup_free_ char *error = NULL;
-      if (asprintf(&error, "JSON merge object passwd: %s",
+      if (asprintf(&error, "JSON merge object passwd failed: %s",
 		   strerror(-r)) < 0)
 	error = NULL;
       log_msg(LOG_ERR, "%s", error);
@@ -370,7 +371,7 @@ vl_method_get_user_record(sd_varlink *link, sd_json_variant *parameters,
       if (r < 0)
 	{
 	  _cleanup_free_ char *error = NULL;
-	  if (asprintf(&error, "JSON merge object shadow: %s",
+	  if (asprintf(&error, "JSON merge object shadow failed: %s",
 		       strerror(-r)) < 0)
 	    error = NULL;
 	  log_msg(LOG_ERR, "%s", error);
@@ -380,12 +381,26 @@ vl_method_get_user_record(sd_varlink *link, sd_json_variant *parameters,
 	}
     }
 
-  /* XXX Only add "non-NULL" entries */
-  return sd_varlink_replybo(link, SD_JSON_BUILD_PAIR_BOOLEAN("Success", true),
-			    SD_JSON_BUILD_PAIR_BOOLEAN("Complete", complete),
-			    SD_JSON_BUILD_PAIR_VARIANT("passwd", passwd),
-  			    SD_JSON_BUILD_PAIR_VARIANT("shadow", shadow));
+  r = sd_json_variant_merge_objectbo(&result, SD_JSON_BUILD_PAIR_BOOLEAN("Success", true));
+  if (r >= 0 && (passwd || shadow))
+    r = sd_json_variant_merge_objectbo(&result, SD_JSON_BUILD_PAIR_BOOLEAN("Complete", complete));
+  if (r >= 0 && passwd)
+    r = sd_json_variant_merge_objectbo(&result, SD_JSON_BUILD_PAIR_VARIANT("passwd", passwd));
+  if (r >= 0 && shadow)
+    r = sd_json_variant_merge_objectbo(&result, SD_JSON_BUILD_PAIR_VARIANT("shadow", shadow));
+  if (r < 0)
+    {
+      _cleanup_free_ char *error = NULL;
+      if (asprintf(&error, "JSON merge result object failed: %s",
+		   strerror(-r)) < 0)
+	error = NULL;
+      log_msg(LOG_ERR, "%s", error);
+      return sd_varlink_errorbo(link, "org.openSUSE.pwaccess.InternalError",
+				SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
+				SD_JSON_BUILD_PAIR_STRING("ErrorMsg", error?error:"Out of Memory"));
+    }
 
+  return sd_varlink_reply(link, result);
 }
 
 /* Send a messages to systemd daemon, that inicialization of daemon
