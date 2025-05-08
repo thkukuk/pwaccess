@@ -241,7 +241,7 @@ vl_method_get_user_record(sd_varlink *link, sd_json_variant *parameters,
     .name = NULL,
   };
   static const sd_json_dispatch_field dispatch_table[] = {
-    { "uid",      SD_JSON_VARIANT_INTEGER, sd_json_dispatch_int,    offsetof(struct parameters, uid), 0},
+    { "uid",      SD_JSON_VARIANT_INTEGER, sd_json_dispatch_int64,  offsetof(struct parameters, uid), 0},
     { "userName", SD_JSON_VARIANT_STRING,  sd_json_dispatch_string, offsetof(struct parameters, name), 0},
     {}
   };
