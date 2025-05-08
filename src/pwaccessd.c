@@ -303,10 +303,10 @@ vl_method_get_user_record(sd_varlink *link, sd_json_variant *parameters,
 
 	  if (asprintf(&error, "getpwnam() failed: %m") < 0)
 	    error = NULL;
-	  log_msg(LOG_ERR, "%s", error?error:"Out of Memory");
+	  log_msg(LOG_ERR, "%s", stroom(error));
 	  return sd_varlink_errorbo(link, "org.openSUSE.pwaccess.InternalError",
 				    SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
-				    SD_JSON_BUILD_PAIR_STRING("ErrorMsg", error?error:"Out of Memory"));
+				    SD_JSON_BUILD_PAIR_STRING("ErrorMsg", stroom(error)));
 	}
     }
 
@@ -318,10 +318,10 @@ vl_method_get_user_record(sd_varlink *link, sd_json_variant *parameters,
 
       if (asprintf(&error, "getspnam() failed: %m") < 0)
 	error = NULL;
-      log_msg(LOG_ERR, "%s", error?error:"Out of Memory");
+      log_msg(LOG_ERR, "%s", stroom(error));
       return sd_varlink_errorbo(link, "org.openSUSE.pwaccess.InternalError",
 				SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
-				SD_JSON_BUILD_PAIR_STRING("ErrorMsg", error?error:"Out of Memory"));
+				SD_JSON_BUILD_PAIR_STRING("ErrorMsg", stroom(error)));
     }
 
   /* Don't return password if query does not come from root
@@ -353,7 +353,7 @@ vl_method_get_user_record(sd_varlink *link, sd_json_variant *parameters,
       log_msg(LOG_ERR, "%s", error);
       return sd_varlink_errorbo(link, "org.openSUSE.pwaccess.InternalError",
 				SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
-				SD_JSON_BUILD_PAIR_STRING("ErrorMsg", error?error:"Out of Memory"));
+				SD_JSON_BUILD_PAIR_STRING("ErrorMsg", stroom(error)));
     }
 
   if (sp)
@@ -377,7 +377,7 @@ vl_method_get_user_record(sd_varlink *link, sd_json_variant *parameters,
 	  log_msg(LOG_ERR, "%s", error);
 	  return sd_varlink_errorbo(link, "org.openSUSE.pwaccess.InternalError",
 				    SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
-				    SD_JSON_BUILD_PAIR_STRING("ErrorMsg", error?error:"Out of Memory"));
+				    SD_JSON_BUILD_PAIR_STRING("ErrorMsg", stroom(error)));
 	}
     }
 
@@ -397,7 +397,7 @@ vl_method_get_user_record(sd_varlink *link, sd_json_variant *parameters,
       log_msg(LOG_ERR, "%s", error);
       return sd_varlink_errorbo(link, "org.openSUSE.pwaccess.InternalError",
 				SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
-				SD_JSON_BUILD_PAIR_STRING("ErrorMsg", error?error:"Out of Memory"));
+				SD_JSON_BUILD_PAIR_STRING("ErrorMsg", stroom(error)));
     }
 
   return sd_varlink_reply(link, result);
