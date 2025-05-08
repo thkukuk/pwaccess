@@ -5,6 +5,7 @@
 #include <pwd.h>
 #include <shadow.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 #define PWACCESS_IS_NOT_RUNNING(r) (r == -ECONNREFUSED || r == -ENOENT || r == -ECONNRESET || r == -EACCES)
 
