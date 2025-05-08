@@ -116,9 +116,21 @@ pwaccess_get_user_record(int64_t uid, const char *user, struct passwd **ret_pw, 
     { "shadow",     SD_JSON_VARIANT_OBJECT,  sd_json_dispatch_variant, offsetof(struct user_record, content_shadow), SD_JSON_NULLABLE },
     {}
   };
+  static const sd_json_dispatch_field dispatch_passwd_table[] = {
+    { "name",   SD_JSON_VARIANT_STRING, sd_json_dispatch_string, offsetof(struct passwd, pw_name),   SD_JSON_MANDATORY },
+    { "passwd", SD_JSON_VARIANT_STRING, sd_json_dispatch_string, offsetof(struct passwd, pw_passwd), SD_JSON_NULLABLE },
+    { "UID",    SD_JSON_VARIANT_INTEGER, sd_json_dispatch_int,   offsetof(struct passwd, pw_uid),    SD_JSON_MANDATORY },
+    { "GID",    SD_JSON_VARIANT_INTEGER, sd_json_dispatch_int,   offsetof(struct passwd, pw_gid),    SD_JSON_MANDATORY },
+    { "GECOS",  SD_JSON_VARIANT_STRING, sd_json_dispatch_string, offsetof(struct passwd, pw_gecos),  SD_JSON_NULLABLE },
+    { "dir",    SD_JSON_VARIANT_STRING, sd_json_dispatch_string, offsetof(struct passwd, pw_dir),    SD_JSON_NULLABLE },
+    { "shell",  SD_JSON_VARIANT_STRING, sd_json_dispatch_string, offsetof(struct passwd, pw_shell),  SD_JSON_NULLABLE },
+    {}
+  };
   _cleanup_(sd_varlink_unrefp) sd_varlink *link = NULL;
   _cleanup_(sd_json_variant_unrefp) sd_json_variant *params = NULL;
-  sd_json_variant *result;
+  _cleanup_(struct_passwd_freep) struct passwd *pw = NULL;
+  _cleanup_(struct_shadow_freep) struct spwd *sp = NULL;
+  sd_json_variant *result = NULL;
   const char *error_id = NULL;
   int r;
 
@@ -158,32 +170,30 @@ pwaccess_get_user_record(int64_t uid, const char *user, struct passwd **ret_pw, 
 	  if (p.error)
 	    *error = p.error;
 	  else
-	    *error = strdup(error_id); /* XXX NULL ckeck */
+	    {
+	      *error = strdup(error_id);
+	      if (*error == NULL)
+		retval = -ENOMEM;
+	    }
 	}
 
+      /* Yes, we will overwrite a possible ENOMEM, but
+	 this shouldn't matter here */
       if (streq(error_id, "org.openSUSE.pwaccess.NoEntryFound"))
 	retval = -ENOENT;
 
       return retval;
     }
 
-  if (p.content_passwd == NULL)
+  if (sd_json_variant_is_null(p.content_passwd))
     {
       printf("No entry found\n");
       return 0;
     }
 
-  _cleanup_(struct_passwd_freep) struct passwd *pw = calloc(1, sizeof(struct passwd)); /* XXX check NULL */
-  static const sd_json_dispatch_field dispatch_passwd_table[] = {
-    { "name",   SD_JSON_VARIANT_STRING, sd_json_dispatch_string, offsetof(struct passwd, pw_name),   SD_JSON_MANDATORY },
-    { "passwd", SD_JSON_VARIANT_STRING, sd_json_dispatch_string, offsetof(struct passwd, pw_passwd), SD_JSON_NULLABLE },
-    { "UID",    SD_JSON_VARIANT_INTEGER, sd_json_dispatch_int,   offsetof(struct passwd, pw_uid),    SD_JSON_MANDATORY },
-    { "GID",    SD_JSON_VARIANT_INTEGER, sd_json_dispatch_int,   offsetof(struct passwd, pw_gid),    SD_JSON_MANDATORY },
-    { "GECOS",  SD_JSON_VARIANT_STRING, sd_json_dispatch_string, offsetof(struct passwd, pw_gecos),  SD_JSON_NULLABLE },
-    { "dir",    SD_JSON_VARIANT_STRING, sd_json_dispatch_string, offsetof(struct passwd, pw_dir),    SD_JSON_NULLABLE },
-    { "shell",  SD_JSON_VARIANT_STRING, sd_json_dispatch_string, offsetof(struct passwd, pw_shell),  SD_JSON_NULLABLE },
-    {}
-  };
+  pw = calloc(1, sizeof(struct passwd)); /* XXX check NULL */
+  if (pw == NULL)
+    return -ENOMEM;
 
   r = sd_json_dispatch(p.content_passwd, dispatch_passwd_table, SD_JSON_ALLOW_EXTENSIONS, pw);
   if (r < 0)
@@ -192,10 +202,8 @@ pwaccess_get_user_record(int64_t uid, const char *user, struct passwd **ret_pw, 
       return r;
     }
 
-  _cleanup_(struct_shadow_freep) struct spwd *sp = NULL;
   if (!sd_json_variant_is_null(p.content_shadow))
     {
-      sp = calloc(1, sizeof(struct spwd)); /* XXX check NULL */
       static const sd_json_dispatch_field dispatch_shadow_table[] = {
 	{ "name",   SD_JSON_VARIANT_STRING, sd_json_dispatch_string, offsetof(struct spwd, sp_namp),   SD_JSON_MANDATORY },
 	{ "passwd", SD_JSON_VARIANT_STRING, sd_json_dispatch_string, offsetof(struct spwd, sp_pwdp),   SD_JSON_NULLABLE },
@@ -208,6 +216,10 @@ pwaccess_get_user_record(int64_t uid, const char *user, struct passwd **ret_pw, 
 	{ "flag",   SD_JSON_VARIANT_INTEGER, sd_json_dispatch_int64, offsetof(struct spwd, sp_flag),   0 },
 	{}
       };
+
+      sp = calloc(1, sizeof(struct spwd));
+      if (sp == NULL)
+	return -ENOMEM;
 
       r = sd_json_dispatch(p.content_shadow, dispatch_shadow_table, SD_JSON_ALLOW_EXTENSIONS, sp);
       if (r < 0)
