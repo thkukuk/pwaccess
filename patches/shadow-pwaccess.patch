@@ -1,0 +1,103 @@
+diff --git a/src/Makefile.am b/src/Makefile.am
+index 69818150..d271981e 100644
+--- a/src/Makefile.am
++++ b/src/Makefile.am
+@@ -99,7 +99,7 @@ else
+ LIBCRYPT_NOPAM = $(LIBCRYPT)
+ endif
+ 
+-chage_LDADD    = $(LDADD) $(LIBAUDIT) $(LIBSELINUX) $(LIBECONF) -ldl
++chage_LDADD    = $(LDADD) $(LIBAUDIT) $(LIBSELINUX) $(LIBECONF) -ldl -lpwaccess
+ newuidmap_LDADD    = $(LDADD) $(LIBAUDIT) $(LIBSELINUX) $(LIBCAP) $(LIBECONF) -ldl
+ newgidmap_LDADD    = $(LDADD) $(LIBAUDIT) $(LIBSELINUX) $(LIBCAP) $(LIBECONF) -ldl
+ chfn_LDADD     = $(LDADD) $(LIBPAM) $(LIBAUDIT) $(LIBSELINUX) $(LIBCRYPT_NOPAM) $(LIBSKEY) $(LIBMD) $(LIBECONF)
+diff --git a/src/chage.c b/src/chage.c
+index 49ca4750..a3466a24 100644
+--- a/src/chage.c
++++ b/src/chage.c
+@@ -41,6 +41,7 @@
+ #include "tcbfuncs.h"
+ #endif
+ 
++#include "pwaccess.h"
+ 
+ /*
+  * Global variables
+@@ -707,10 +708,10 @@ static void get_defaults (/*@null@*/const struct spwd *sp)
+ 
+ int main (int argc, char **argv)
+ {
+-	const struct spwd *sp;
++	const struct spwd *sp = NULL;
+ 	uid_t ruid;
+ 	gid_t rgid;
+-	const struct passwd *pw;
++	const struct passwd *pw = NULL;
+ 
+ 	sanitize_env ();
+ 	check_fds ();
+@@ -743,6 +744,31 @@ int main (int argc, char **argv)
+ 
+ 	check_perms ();
+ 
++	if (lflg)
++	  {
++	    int r;
++	    char *error = NULL;
++
++	    r = pwaccess_get_user_record (-1, argv[optind], (struct passwd **)&pw, (struct spwd **)&sp, NULL, &error);
++	    if (r < 0)
++	      {
++		if (PWACCESS_IS_NOT_RUNNING(r))
++		  goto fallback;
++
++		if (error)
++		  {
++		    fprintf (stderr, "%s\n", error);
++		    free (error);
++		    error = NULL;
++		  }
++		else
++		  fprintf (stderr, "%s\n", strerror (-r));
++		return -r; /* XXX fail_exit */
++	      }
++	  }
++	else
++	  {
++ fallback:
+ 	if (!spw_file_present ()) {
+ 		fprintf (stderr,
+ 		         _("%s: the shadow password file is not present\n"),
+@@ -753,6 +779,7 @@ int main (int argc, char **argv)
+ 	}
+ 
+ 	open_files (lflg);
++	  }
+ 	/* Drop privileges */
+ 	if (lflg && (   (setregid (rgid, rgid) != 0)
+ 	             || (setreuid (ruid, ruid) != 0))) {
+@@ -761,7 +788,8 @@ int main (int argc, char **argv)
+ 		fail_exit (E_NOPERM);
+ 	}
+ 
+-	pw = pw_locate (argv[optind]);
++	if (!pw)
++	  pw = pw_locate (argv[optind]);
+ 	if (NULL == pw) {
+ 		fprintf (stderr, _("%s: user '%s' does not exist in %s\n"),
+ 		         Prog, argv[optind], pw_dbname ());
+@@ -777,7 +805,8 @@ int main (int argc, char **argv)
+ #endif
+ 	user_uid = pw->pw_uid;
+ 
+-	sp = spw_locate (argv[optind]);
++	if (!sp)
++	  sp = spw_locate (argv[optind]);
+ 	get_defaults (sp);
+ 
+ 	/*
+@@ -855,4 +884,3 @@ int main (int argc, char **argv)
+ 	closelog ();
+ 	exit (E_SUCCESS);
+ }
+-

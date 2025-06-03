@@ -1,0 +1,72 @@
+diff --git a/meson.build b/meson.build
+index 285a0ebf..05182b2b 100644
+--- a/meson.build
++++ b/meson.build
+@@ -263,6 +263,7 @@ foreach f: ['crypt_r']
+   endif
+ endforeach
+ 
++libpwaccess = dependency('libpwaccess')
+ 
+ libeconf = dependency('libeconf', version: '>= 0.5.0', required: get_option('econf'))
+ if libeconf.found()
+diff --git a/modules/module-meson.build b/modules/module-meson.build
+index dce38b90..b5914358 100644
+--- a/modules/module-meson.build
++++ b/modules/module-meson.build
+@@ -116,7 +116,7 @@ if module == 'pam_unix'
+   endif
+   pam_module_c_args += ['-DCHKPWD_HELPER="@0@"'.format(sbindir / 'unix_chkpwd'),
+                         '-DUPDATE_HELPER="@0@"'.format(sbindir / 'unix_update')]
+-  pam_module_deps += [libcrypt, libselinux, libtirpc, libnsl]
++  pam_module_deps += [libcrypt, libselinux, libtirpc, libnsl, libpwaccess]
+ endif
+ if module == 'pam_userdb'
+   if not enable_pam_userdb
+diff --git a/modules/pam_unix/passverify.c b/modules/pam_unix/passverify.c
+index 85e7841e..d5cb9014 100644
+--- a/modules/pam_unix/passverify.c
++++ b/modules/pam_unix/passverify.c
+@@ -50,6 +50,8 @@
+ # include "./lckpwdf.-c"
+ #endif
+ 
++#include <pwaccess.h>
++
+ static void
+ strip_hpux_aging(char *hash)
+ {
+@@ -196,6 +198,33 @@ is_pwd_shadowed(const struct passwd *pwd)
+ PAMH_ARG_DECL(int get_account_info,
+ 	const char *name, struct passwd **pwd, struct spwd **spwdent)
+ {
++#ifndef HELPER_COMPILE
++  int r;
++
++  /* XXX we need to free that somehow */
++  r = pwaccess_get_user_record (-1, name, pwd, spwdent, NULL, NULL);
++  if (r < 0)
++    {
++      if (!PWACCESS_IS_NOT_RUNNING(r))
++	{
++	  if (r == -ENOENT)
++	    return PAM_USER_UNKNOWN;
++
++	  pam_syslog(pamh, LOG_ERR, "pwaccess failed: %s", strerror(-r));
++	  return PAM_AUTHINFO_UNAVAIL;
++	}
++    }
++  else
++    {
++      if (*pwd == NULL)
++	return PAM_USER_UNKNOWN;
++      if (is_pwd_shadowed(*pwd) &&
++	  (*spwdent == NULL || (*spwdent)->sp_pwdp == NULL))
++	return PAM_AUTHINFO_UNAVAIL;
++      return PAM_SUCCESS;
++    }
++#endif
++
+ 	/* UNIX passwords area */
+ 	*pwd = pam_modutil_getpwnam(pamh, name);	/* Get password file entry... */
+ 	*spwdent = NULL;
