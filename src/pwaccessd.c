@@ -2,6 +2,7 @@
 
 #include "config.h"
 
+#include <assert.h>
 #include <limits.h>
 #include <getopt.h>
 #include <stdlib.h>
@@ -16,6 +17,7 @@
 
 #include "basics.h"
 #include "mkdir_p.h"
+#include "verify.h"
 
 #include "varlink-org.openSUSE.pwaccess.h"
 
@@ -219,14 +221,20 @@ vl_method_quit (sd_varlink *link, sd_json_variant *parameters,
 struct parameters {
   int64_t uid;
   char *name;
+  char *password;
+  bool nullok;
 };
 
 static void
 parameters_free(struct parameters *var)
 {
   var->name = mfree(var->name);
+  if (var->password)
+    {
+      explicit_bzero(var->password, strlen(var->password));
+      var->password = mfree(var->password);
+    }
 }
-
 
 static int
 vl_method_get_user_record(sd_varlink *link, sd_json_variant *parameters,
@@ -310,6 +318,7 @@ vl_method_get_user_record(sd_varlink *link, sd_json_variant *parameters,
 	}
     }
 
+  /* Get shadow entry */
   errno = 0;
   struct spwd *sp = getspnam(pw->pw_name);
   if (sp == NULL && errno != 0)
@@ -328,7 +337,7 @@ vl_method_get_user_record(sd_varlink *link, sd_json_variant *parameters,
      and result is not the one of the calling user */
   if (peer_uid != 0 && pw->pw_uid != peer_uid)
     {
-      log_msg(LOG_DEBUG, "GetUserRecord: peer UID not 0 and UID not equal to peer UID (%li,%li)",
+      log_msg(LOG_DEBUG, "GetUserRecord: peer UID not 0 and UID not equal to peer UID (%i,%i)",
 	      peer_uid, pw->pw_uid);
       pw->pw_passwd = NULL;
       complete = false;
@@ -401,6 +410,145 @@ vl_method_get_user_record(sd_varlink *link, sd_json_variant *parameters,
     }
 
   return sd_varlink_reply(link, result);
+}
+
+static int
+vl_method_verify_password(sd_varlink *link, sd_json_variant *parameters,
+			  sd_varlink_method_flags_t _unused_(flags),
+			  void _unused_(*userdata))
+{
+  _cleanup_(parameters_free) struct parameters p = {
+    .uid = -1,
+    .name = NULL,
+  };
+  static const sd_json_dispatch_field dispatch_table[] = {
+    { "userName", SD_JSON_VARIANT_STRING,  sd_json_dispatch_string, offsetof(struct parameters, name),     SD_JSON_MANDATORY},
+    { "password", SD_JSON_VARIANT_STRING,  sd_json_dispatch_string, offsetof(struct parameters, password), SD_JSON_MANDATORY},
+    { "password", SD_JSON_VARIANT_BOOLEAN, sd_json_dispatch_stdbool, offsetof(struct parameters, nullok),  0},
+    {}
+  };
+  uid_t peer_uid;
+  int r;
+
+  log_msg(LOG_INFO, "Varlink method \"VerifyPassword\" called...");
+
+  r = sd_varlink_dispatch(link, parameters, dispatch_table, &p);
+  if (r < 0)
+    {
+      log_msg(LOG_ERR, "VerifyPassword request: varlink dispatch failed: %s", strerror(-r));
+      return r;
+    }
+
+  r = sd_varlink_get_peer_uid(link, &peer_uid);
+  if (r < 0)
+    {
+      log_msg(LOG_ERR, "Failed to get peer UID: %s", strerror(-r));
+      return r;
+    }
+
+  if (p.name == NULL)
+    {
+      log_msg(LOG_ERR, "VerifyPassword request: no user name specified");
+      return sd_varlink_errorbo(link, "org.openSUSE.pwaccess.InvalidParameter",
+				SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
+				SD_JSON_BUILD_PAIR_STRING("ErrorMsg", "No user name specified"));
+    }
+
+  struct passwd *pw = NULL;
+  errno = 0; /* to find out if getpwnam succeed and there is no entry of if there was an error */
+  pw = getpwnam(p.name);
+
+  if (pw == NULL)
+    {
+      if (errno == 0)
+	{
+	  log_msg(LOG_INFO, "User '%s' not found", strna(p.name));
+	  return sd_varlink_errorbo(link, "org.openSUSE.pwaccess.NoEntryFound",
+				    SD_JSON_BUILD_PAIR_BOOLEAN("Success", false));
+	}
+      else
+	{
+	  _cleanup_free_ char *error = NULL;
+
+	  if (asprintf(&error, "getpwnam() failed: %m") < 0)
+	    error = NULL;
+	  log_msg(LOG_ERR, "%s", stroom(error));
+	  return sd_varlink_errorbo(link, "org.openSUSE.pwaccess.InternalError",
+				    SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
+				    SD_JSON_BUILD_PAIR_STRING("ErrorMsg", stroom(error)));
+	}
+    }
+
+  /* Don't verify password if query does not come from root
+     and result is not the one of the calling user */
+  if (peer_uid != 0 && pw->pw_uid != peer_uid)
+    {
+      _cleanup_free_ char *error = NULL;
+
+      if (asprintf(&error, "Peer UID (%i) not 0 and peer UID not equal to UID",
+		   peer_uid) < 0)
+	error = NULL;
+      log_msg(LOG_ERR, "VerifyPassword: %s", stroom(error));
+      return sd_varlink_errorbo(link, "org.openSUSE.pwaccess.InternalError",
+				SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
+				SD_JSON_BUILD_PAIR_STRING("ErrorMsg", stroom(error)));
+    }
+
+  const char *hash = NULL;
+  if (is_shadow(pw))
+    {
+      /* Get shadow entry */
+      errno = 0;
+      struct spwd *sp = getspnam(pw->pw_name);
+      if (sp == NULL && errno != 0)
+	{
+	  _cleanup_free_ char *error = NULL;
+
+	  if (asprintf(&error, "getspnam() failed: %m") < 0)
+	    error = NULL;
+	  log_msg(LOG_ERR, "%s", stroom(error));
+	  return sd_varlink_errorbo(link, "org.openSUSE.pwaccess.InternalError",
+				    SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
+				    SD_JSON_BUILD_PAIR_STRING("ErrorMsg", stroom(error)));
+	}
+      hash = sp->sp_pwdp;
+    }
+  else
+    hash = pw->pw_passwd;
+
+  r = verify_password(hash, p.password, p.nullok);
+  if (r < 0)
+    {
+      _cleanup_free_ char *error = NULL;
+
+      if (asprintf(&error, "verify_password() failed: %s", strerror(-r)) < 0)
+	error = NULL;
+      log_msg(LOG_ERR, "verify_password: %s", stroom(error));
+      return sd_varlink_errorbo(link, "org.openSUSE.pwaccess.InternalError",
+				SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
+				SD_JSON_BUILD_PAIR_STRING("ErrorMsg", stroom(error)));
+    }
+  else if (r > 0)
+    {
+      if (r == VERIFY_FAILED) /* password does not match */
+	return sd_varlink_replybo(link, SD_JSON_BUILD_PAIR_BOOLEAN("Success", false));
+      else /* libcrypt/internal error */
+	{
+	  const char *error = NULL;
+
+	  if (r == VERIFY_CRYPT_DISABLED)
+	    error = "The used salt is disabled in libcrypt";
+	  else if (r == VERIFY_CRYPT_INVALID)
+	    error = "The used salt is not supported by libcrypt";
+
+	  log_msg(LOG_ERR, "verify_password failed: %s", strna(error));
+	  return sd_varlink_errorbo(link, "org.openSUSE.pwaccess.InternalError",
+				    SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
+				    SD_JSON_BUILD_PAIR_STRING("ErrorMsg", strna(error)));
+	}
+    }
+
+  return sd_varlink_replybo(link, SD_JSON_BUILD_PAIR_BOOLEAN("Success", true));
 }
 
 /* Send a messages to systemd daemon, that inicialization of daemon
@@ -477,7 +625,7 @@ run_varlink (void)
       return r;
     }
 
-  r = sd_varlink_server_new (&varlink_server, SD_VARLINK_SERVER_ACCOUNT_UID|SD_VARLINK_SERVER_INHERIT_USERDATA);
+  r = sd_varlink_server_new (&varlink_server, SD_VARLINK_SERVER_ACCOUNT_UID|SD_VARLINK_SERVER_INHERIT_USERDATA|SD_VARLINK_SERVER_INPUT_SENSITIVE);
   if (r < 0)
     {
       log_msg (LOG_ERR, "Failed to allocate varlink server: %s",
@@ -507,6 +655,7 @@ run_varlink (void)
 
   r = sd_varlink_server_bind_method_many (varlink_server,
 					  "org.openSUSE.pwaccess.GetUserRecord",  vl_method_get_user_record,
+					  "org.openSUSE.pwaccess.VerifyPassword", vl_method_verify_password,
 					  "org.openSUSE.pwaccess.GetEnvironment", vl_method_get_environment,
 					  "org.openSUSE.pwaccess.Ping",           vl_method_ping,
 					  "org.openSUSE.pwaccess.Quit",           vl_method_quit,

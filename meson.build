@@ -59,7 +59,8 @@ libexecdir = join_paths(prefixdir, get_option('libexecdir'))
 systemunitdir = prefixdir / 'lib/systemd/system'
 tmpfilesdir = prefixdir / 'lib/tmpfiles.d'
 
-libsystemd = dependency('libsystemd', version: '>= 257', required : true)
+libsystemd = dependency('libsystemd', version: '>= 257', required: true)
+libcrypt = dependency('libcrypt', 'libxcrypt', required: true)
 
 libpwaccess_c = files('lib/varlink.c')
 libpwaccess_map = 'lib/libpwaccess.map'
@@ -86,12 +87,12 @@ pkg.generate(
   version : meson.project_version(),
 )
 
-pwaccessd_c = ['src/pwaccessd.c', 'src/varlink-org.openSUSE.pwaccess.c', 'src/mkdir_p.c']
+pwaccessd_c = ['src/pwaccessd.c', 'src/varlink-org.openSUSE.pwaccess.c', 'src/mkdir_p.c', 'src/verify.c']
 
 executable('pwaccessd',
            pwaccessd_c,
            include_directories : inc,
-           dependencies : [libsystemd],
+           dependencies : [libsystemd, libcrypt],
            install_dir : libexecdir,
            install : true)
 

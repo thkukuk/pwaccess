@@ -27,6 +27,20 @@ connect_to_pwaccessd(sd_varlink **ret, const char *socket, char **error)
       return r;
     }
 
+  /* Mark anything we get from the service as sensitive */
+  r = sd_varlink_set_input_sensitive(link);
+  if (r < 0)
+    {
+      if (error)
+	if (asprintf (error, "Failed to enable sensitive Varlink input: %s",
+		      strerror(-r)) < 0)
+	  {
+	    error = NULL;
+	    r = -ENOMEM;
+	  }
+      return r;
+    }
+
   *ret = TAKE_PTR(link);
   return 0;
 }

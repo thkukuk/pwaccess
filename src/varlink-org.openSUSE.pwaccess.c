@@ -47,6 +47,15 @@ static SD_VARLINK_DEFINE_METHOD(
                 SD_VARLINK_DEFINE_INPUT(groupName, SD_VARLINK_STRING, SD_VARLINK_NULLABLE));
 
 static SD_VARLINK_DEFINE_METHOD(
+                VerifyPassword,
+                SD_VARLINK_FIELD_COMMENT("The account of the user to verify the password."),
+                SD_VARLINK_DEFINE_INPUT(userName, SD_VARLINK_STRING, 0),
+                SD_VARLINK_FIELD_COMMENT("The password of the user to verify."),
+                SD_VARLINK_DEFINE_INPUT(password, SD_VARLINK_STRING, 0),
+		SD_VARLINK_FIELD_COMMENT("If empty password is ok, default false"),
+                SD_VARLINK_DEFINE_INPUT(nullOK, SD_VARLINK_BOOL, SD_VARLINK_NULLABLE));
+
+static SD_VARLINK_DEFINE_METHOD(
 		Quit,
 		SD_VARLINK_FIELD_COMMENT("Stop the daemon"),
 		SD_VARLINK_DEFINE_INPUT(ExitCode, SD_VARLINK_INT, SD_VARLINK_NULLABLE),
