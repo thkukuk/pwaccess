@@ -418,13 +418,14 @@ vl_method_verify_password(sd_varlink *link, sd_json_variant *parameters,
 			  void _unused_(*userdata))
 {
   _cleanup_(parameters_free) struct parameters p = {
-    .uid = -1,
     .name = NULL,
+    .password = NULL,
+    .nullok = false
   };
   static const sd_json_dispatch_field dispatch_table[] = {
-    { "userName", SD_JSON_VARIANT_STRING,  sd_json_dispatch_string, offsetof(struct parameters, name),     SD_JSON_MANDATORY},
-    { "password", SD_JSON_VARIANT_STRING,  sd_json_dispatch_string, offsetof(struct parameters, password), SD_JSON_MANDATORY},
-    { "password", SD_JSON_VARIANT_BOOLEAN, sd_json_dispatch_stdbool, offsetof(struct parameters, nullok),  0},
+    { "userName", SD_JSON_VARIANT_STRING,  sd_json_dispatch_string,  offsetof(struct parameters, name),     SD_JSON_MANDATORY},
+    { "password", SD_JSON_VARIANT_STRING,  sd_json_dispatch_string,  offsetof(struct parameters, password), SD_JSON_MANDATORY},
+    { "nullOK",   SD_JSON_VARIANT_BOOLEAN, sd_json_dispatch_stdbool, offsetof(struct parameters, nullok),   0},
     {}
   };
   uid_t peer_uid;
@@ -531,7 +532,10 @@ vl_method_verify_password(sd_varlink *link, sd_json_variant *parameters,
   else if (r > 0)
     {
       if (r == VERIFY_FAILED) /* password does not match */
-	return sd_varlink_replybo(link, SD_JSON_BUILD_PAIR_BOOLEAN("Success", false));
+	{
+	  log_msg(LOG_DEBUG, "verify_password (%s): password does not match", p.name);
+	  return sd_varlink_replybo(link, SD_JSON_BUILD_PAIR_BOOLEAN("Success", false));
+	}
       else /* libcrypt/internal error */
 	{
 	  const char *error = NULL;
@@ -548,6 +552,7 @@ vl_method_verify_password(sd_varlink *link, sd_json_variant *parameters,
 	}
     }
 
+  log_msg(LOG_DEBUG, "verify_password (%s): password matches", p.name);
   return sd_varlink_replybo(link, SD_JSON_BUILD_PAIR_BOOLEAN("Success", true));
 }
 
