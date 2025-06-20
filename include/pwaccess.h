@@ -18,4 +18,7 @@ extern void struct_shadow_freep(struct spwd **var);
 extern int pwaccess_get_user_record(int64_t uid, const char *user,
 				    struct passwd **pw, struct spwd **sp,
 				    bool *complete, char **error);
+extern int pwaccess_verify_password(const char *user, const char *password,
+		                    bool nullok, 
+				    bool *ret_authenticated, char **error);
 

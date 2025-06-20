@@ -1,6 +1,7 @@
 LIBPWACCESS_0.1 {
   global:
 	pwaccess_get_user_record;
+        pwaccess_verify_password;
 	struct_passwd_freep;
 	struct_passwd_free; 
 	struct_shadow_freep;
