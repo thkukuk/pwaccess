@@ -16,9 +16,9 @@ main(int argc, char **argv)
   bool nullok = true;
   int r;
 
-  if (argc != 3)
+  if (argc < 2)
     {
-      fprintf(stderr, "Usage: verify_password <account> <password>\n");
+      fprintf(stderr, "Usage: verify_password <account> [password]\n");
       return 1;
     }
 

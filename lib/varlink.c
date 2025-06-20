@@ -286,7 +286,7 @@ pwaccess_verify_password(const char *user, const char *password, bool nullok, bo
   if (ret_authenticated)
     *ret_authenticated = false;
 
-  if (!user || !password || !ret_authenticated)
+  if (!user || !ret_authenticated)
     return -EINVAL;
 
   r = connect_to_pwaccessd(&link, _VARLINK_PWACCESS_SOCKET, error);
@@ -295,7 +295,7 @@ pwaccess_verify_password(const char *user, const char *password, bool nullok, bo
 
   r = sd_json_buildo(&params,
                      SD_JSON_BUILD_PAIR("userName", SD_JSON_BUILD_STRING(user)),
-		     SD_JSON_BUILD_PAIR("password", SD_JSON_BUILD_STRING(password)),
+		     SD_JSON_BUILD_PAIR("password", SD_JSON_BUILD_STRING(strempty(password))),
 		     SD_JSON_BUILD_PAIR("nullOK", SD_JSON_BUILD_BOOLEAN(nullok)));
   if (r < 0)
     {
