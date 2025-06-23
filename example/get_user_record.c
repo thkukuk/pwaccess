@@ -9,7 +9,7 @@
 #include "basics.h"
 
 int
-main(void)
+main(int argc, char **argv)
 {
   _cleanup_free_ char *error = NULL;
   _cleanup_(struct_passwd_freep) struct passwd *pw = NULL;
@@ -17,7 +17,10 @@ main(void)
   bool complete = false;
   int r;
 
-  r = pwaccess_get_user_record(getuid(), NULL, &pw, &sp, &complete, &error);
+  if (argc >= 2)
+    r = pwaccess_get_user_record(-1, argv[1], &pw, &sp, &complete, &error);
+  else
+    r = pwaccess_get_user_record(getuid(), NULL, &pw, &sp, &complete, &error);
   if (r < 0)
     {
       if (error)
