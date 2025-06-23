@@ -49,6 +49,9 @@ struct user_record {
   bool success;
   char *error;
   bool complete;
+  bool pwchangeable;
+  int expired;
+  long daysleft;
   struct passwd *pw;
   struct spwd *sp;
   sd_json_variant *content_passwd;
@@ -182,7 +185,7 @@ pwaccess_get_user_record(int64_t uid, const char *user, struct passwd **ret_pw, 
       if (error)
 	{
 	  if (p.error)
-	    *error = p.error;
+	    *error = TAKE_PTR(p.error);
 	  else
 	    {
 	      *error = strdup(error_id);
@@ -202,7 +205,7 @@ pwaccess_get_user_record(int64_t uid, const char *user, struct passwd **ret_pw, 
   if (!p.success) /* we should never have this case, but be safe */
     {
       if (error)
-	*error = p.error;
+	*error = TAKE_PTR(p.error);
       return -EIO;
     }
 
@@ -326,7 +329,7 @@ pwaccess_verify_password(const char *user, const char *password, bool nullok, bo
       if (error)
 	{
 	  if (p.error)
-	    *error = p.error;
+	    *error = TAKE_PTR(p.error);
 	  else
 	    {
 	      *error = strdup(error_id);
@@ -346,11 +349,105 @@ pwaccess_verify_password(const char *user, const char *password, bool nullok, bo
   if (!p.success) /* no success and no error means password does not match */
     {
       if (error)
-	*error = p.error;
+	*error = TAKE_PTR(p.error);
       return 0;
     }
 
   *ret_authenticated = true;
 
   return 0;
+}
+
+
+int
+pwaccess_check_expired(const char *user, long *daysleft, bool *pwchangeable, char **error)
+{
+  _cleanup_(user_record_free) struct user_record p = {
+    .success = false,
+    .error = NULL,
+    .content_passwd = NULL,
+    .content_shadow = NULL,
+  };
+  static const sd_json_dispatch_field dispatch_table[] = {
+    { "Success",      SD_JSON_VARIANT_BOOLEAN, sd_json_dispatch_stdbool, offsetof(struct user_record, success), 0 },
+    { "ErrorMsg",     SD_JSON_VARIANT_STRING,  sd_json_dispatch_string,  offsetof(struct user_record, error), 0 },
+    { "Expired",      SD_JSON_VARIANT_INTEGER, sd_json_dispatch_int,     offsetof(struct user_record, expired), 0 },
+    { "DaysLeft",     SD_JSON_VARIANT_INTEGER, sd_json_dispatch_int64,   offsetof(struct user_record, daysleft), 0 },
+    { "PWChangeAble", SD_JSON_VARIANT_BOOLEAN, sd_json_dispatch_stdbool, offsetof(struct user_record, pwchangeable), 0 },
+    {}
+  };
+  _cleanup_(sd_varlink_unrefp) sd_varlink *link = NULL;
+  _cleanup_(sd_json_variant_unrefp) sd_json_variant *params = NULL;
+  sd_json_variant *result = NULL;
+  const char *error_id = NULL;
+  int r;
+
+  if (!user)
+    return -EINVAL;
+
+  r = connect_to_pwaccessd(&link, _VARLINK_PWACCESS_SOCKET, error);
+  if (r < 0)
+    return r;
+
+  r = sd_json_buildo(&params,
+                     SD_JSON_BUILD_PAIR("userName", SD_JSON_BUILD_STRING(user)));
+  if (r < 0)
+    {
+      fprintf(stderr, "Failed to build param list: %s\n", strerror(-r));
+    }
+
+  r = sd_varlink_call(link, "org.openSUSE.pwaccess.ExpiredCheck", params, &result, &error_id);
+  if (r < 0)
+    {
+      fprintf(stderr, "Failed to call CheckExpired method: %s\n", strerror(-r));
+      return r;
+    }
+
+  /* dispatch before checking error_id, we may need the result for the error
+     message */
+  r = sd_json_dispatch(result, dispatch_table, SD_JSON_ALLOW_EXTENSIONS, &p);
+  if (r < 0)
+    {
+      fprintf(stderr, "Failed to parse JSON answer: %s\n", strerror(-r));
+      return r;
+    }
+
+  if (error_id && strlen(error_id) > 0)
+    {
+      int retval = -EIO;
+
+      if (error)
+	{
+	  if (p.error)
+	    *error = TAKE_PTR(p.error);
+	  else
+	    {
+	      *error = strdup(error_id);
+	      if (*error == NULL)
+		retval = -ENOMEM;
+	    }
+	}
+
+      /* Yes, we will overwrite a possible ENOMEM, but
+	 this shouldn't matter here */
+      if (streq(error_id, "org.openSUSE.pwaccess.NoEntryFound"))
+	retval = -ENOENT;
+
+      return retval;
+    }
+
+  if (!p.success)
+    {
+      if (error)
+	*error = TAKE_PTR(p.error);
+      return 0;
+    }
+
+  if (daysleft)
+    *daysleft = p.daysleft;
+
+  if (pwchangeable)
+    *pwchangeable = p.pwchangeable;
+
+  return p.expired;
 }

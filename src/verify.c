@@ -4,7 +4,10 @@
 
 #include <assert.h>
 #include <crypt.h>
+#include <limits.h>
+#include <time.h>
 
+#include "pwaccess.h"
 #include "basics.h"
 #include "verify.h"
 
@@ -20,6 +23,76 @@ is_shadow(const struct passwd *pw)
     return true;
 
   return false;
+}
+
+int
+expired_check(const struct spwd *sp, long *daysleft, bool *pwchangeable)
+{
+  long int now, passed;
+
+  assert(sp);
+
+  if (daysleft)
+    *daysleft = -1;
+
+  if (pwchangeable)
+    *pwchangeable = true;
+
+  now = time(NULL) / (60 * 60 * 24);
+
+  /* account expired */
+  /* XXX ">= 0" or "> 0"? shadow and pam disagree here */
+  if (sp->sp_expire >= 0 && now >= sp->sp_expire)
+    return PWA_EXPIRED_YES;
+
+  /* new password required */
+  if (sp->sp_lstchg == 0)
+    {
+      if (daysleft)
+	*daysleft = 0;
+      return PWA_EXPIRED_CHANGE_PW;
+    }
+
+  /* password aging disabled */
+  /* The last and max fields must be present for an account
+     to have an expired password. A maximum of >10000 days
+     is considered to be infinite. */
+  if (sp->sp_lstchg == -1 ||
+      sp->sp_max == -1 ||
+      sp->sp_max >= 10000)
+    return PWA_EXPIRED_NO;
+
+  passed = now - sp->sp_lstchg;
+  if (sp->sp_max >= 0)
+    {
+      if (sp->sp_inact >= 0)
+	{
+	  long inact = sp->sp_max < LONG_MAX - sp->sp_inact ? sp->sp_max + sp->sp_inact : LONG_MAX;
+	  if (passed >= inact)
+	    {
+	      /* authtok expired */
+	      if (daysleft)
+		*daysleft = inact - passed;
+	      return PWA_EXPIRED_DISABLED;
+	    }
+	}
+      /* needs a new password */
+      if (passed >= sp->sp_max)
+	return PWA_EXPIRED_CHANGE_PW;
+
+      if (sp->sp_warn > 0)
+	{
+	  long warn = sp->sp_warn > sp->sp_max ? -1 : sp->sp_max - sp->sp_warn;
+	  if (passed >= warn && daysleft) /* warn before expire */
+	    *daysleft = sp->sp_max - passed;
+	}
+    }
+
+  if (sp->sp_min > 0 && passed < sp->sp_min && pwchangeable)
+    /* The last password change was too recent. */
+    *pwchangeable = false;
+
+  return PWA_EXPIRED_NO;
 }
 
 static inline int

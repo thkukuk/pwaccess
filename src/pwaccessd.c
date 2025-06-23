@@ -15,6 +15,7 @@
 #include <systemd/sd-varlink.h>
 #include <systemd/sd-journal.h>
 
+#include "pwaccess.h"
 #include "basics.h"
 #include "mkdir_p.h"
 #include "verify.h"
@@ -275,7 +276,7 @@ vl_method_get_user_record(sd_varlink *link, sd_json_variant *parameters,
 
   log_msg(LOG_DEBUG, "GetUserRecord(%li,%s)", p.uid, strna(p.name));
 
-  if (p.uid == -1 && p.name == NULL)
+  if (p.uid == -1 && (p.name == NULL || isempty(p.name)))
     {
       log_msg(LOG_ERR, "GetUserRecord request: no UID nor user name specified");
       return sd_varlink_errorbo(link, "org.openSUSE.pwaccess.InvalidParameter",
@@ -447,7 +448,7 @@ vl_method_verify_password(sd_varlink *link, sd_json_variant *parameters,
       return r;
     }
 
-  if (p.name == NULL)
+  if (p.name == NULL || isempty(p.name))
     {
       log_msg(LOG_ERR, "VerifyPassword request: no user name specified");
       return sd_varlink_errorbo(link, "org.openSUSE.pwaccess.InvalidParameter",
@@ -556,6 +557,131 @@ vl_method_verify_password(sd_varlink *link, sd_json_variant *parameters,
   return sd_varlink_replybo(link, SD_JSON_BUILD_PAIR_BOOLEAN("Success", true));
 }
 
+static int
+vl_method_expired_check(sd_varlink *link, sd_json_variant *parameters,
+			sd_varlink_method_flags_t _unused_(flags),
+			void _unused_(*userdata))
+{
+  _cleanup_(parameters_free) struct parameters p = {
+    .name = NULL,
+    .password = NULL,
+  };
+  static const sd_json_dispatch_field dispatch_table[] = {
+    { "userName", SD_JSON_VARIANT_STRING, sd_json_dispatch_string, offsetof(struct parameters, name), SD_JSON_MANDATORY},
+    {}
+  };
+  uid_t peer_uid;
+  long daysleft;
+  bool pwchangeable;
+  int r;
+
+  log_msg(LOG_INFO, "Varlink method \"ExpiredCheck\" called...");
+
+  r = sd_varlink_dispatch(link, parameters, dispatch_table, &p);
+  if (r < 0)
+    {
+      log_msg(LOG_ERR, "ExpiredCheck request: varlink dispatch failed: %s", strerror(-r));
+      return r;
+    }
+
+  r = sd_varlink_get_peer_uid(link, &peer_uid);
+  if (r < 0)
+    {
+      log_msg(LOG_ERR, "Failed to get peer UID: %s", strerror(-r));
+      return r;
+    }
+
+  if (p.name == NULL || isempty(p.name))
+    {
+      log_msg(LOG_ERR, "ExpiredCheck request: no user name specified");
+      return sd_varlink_errorbo(link, "org.openSUSE.pwaccess.InvalidParameter",
+				SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
+				SD_JSON_BUILD_PAIR_STRING("ErrorMsg", "No user name specified"));
+    }
+
+  struct passwd *pw = NULL;
+  errno = 0; /* to find out if getpwnam succeed and there is no entry of if there was an error */
+  pw = getpwnam(p.name);
+
+  if (pw == NULL)
+    {
+      if (errno == 0)
+	{
+	  log_msg(LOG_INFO, "User '%s' not found", strna(p.name));
+	  return sd_varlink_errorbo(link, "org.openSUSE.pwaccess.NoEntryFound",
+				    SD_JSON_BUILD_PAIR_BOOLEAN("Success", false));
+	}
+      else
+	{
+	  _cleanup_free_ char *error = NULL;
+
+	  if (asprintf(&error, "getpwnam() failed: %m") < 0)
+	    error = NULL;
+	  log_msg(LOG_ERR, "%s", stroom(error));
+	  return sd_varlink_errorbo(link, "org.openSUSE.pwaccess.InternalError",
+				    SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
+				    SD_JSON_BUILD_PAIR_STRING("ErrorMsg", stroom(error)));
+	}
+    }
+
+  /* Don't verify password if query does not come from root
+     and result is not the one of the calling user */
+  if (peer_uid != 0 && pw->pw_uid != peer_uid)
+    {
+      _cleanup_free_ char *error = NULL;
+
+      if (asprintf(&error, "Peer UID (%i) not 0 and peer UID not equal to UID",
+		   peer_uid) < 0)
+	error = NULL;
+      log_msg(LOG_ERR, "ExpiredCheck: %s", stroom(error));
+      return sd_varlink_errorbo(link, "org.openSUSE.pwaccess.InternalError",
+				SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
+				SD_JSON_BUILD_PAIR_STRING("ErrorMsg", stroom(error)));
+    }
+
+  /* Get shadow entry */
+  errno = 0;
+  struct spwd *sp = getspnam(pw->pw_name);
+  if (sp == NULL)
+    {
+      if (errno != 0)
+	{
+	  _cleanup_free_ char *error = NULL;
+
+	  if (asprintf(&error, "getspnam() failed: %m") < 0)
+	    error = NULL;
+	  log_msg(LOG_ERR, "%s", stroom(error));
+	  return sd_varlink_errorbo(link, "org.openSUSE.pwaccess.InternalError",
+				    SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
+				    SD_JSON_BUILD_PAIR_STRING("ErrorMsg", stroom(error)));
+	}
+      log_msg(LOG_DEBUG, "ExpiredCheck: no shadow entry for %s", pw->pw_name);
+      return sd_varlink_replybo(link,
+				SD_JSON_BUILD_PAIR_BOOLEAN("Success", true),
+				SD_JSON_BUILD_PAIR_INTEGER("Expired", PWA_EXPIRED_NO));
+    }
+
+  r = expired_check(sp, &daysleft, &pwchangeable);
+  if (r < 0)
+    {
+      _cleanup_free_ char *error = NULL;
+
+      if (asprintf(&error, "expired_check() failed: %s", strerror(-r)) < 0)
+	error = NULL;
+      log_msg(LOG_ERR, "expired_check: %s", stroom(error));
+      return sd_varlink_errorbo(link, "org.openSUSE.pwaccess.InternalError",
+				SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
+				SD_JSON_BUILD_PAIR_STRING("ErrorMsg", stroom(error)));
+    }
+
+  log_msg(LOG_DEBUG, "expired_check(%s): expired: %d, daysleft: %d", p.name, r, daysleft);
+  return sd_varlink_replybo(link,
+			    SD_JSON_BUILD_PAIR_BOOLEAN("Success", true),
+			    SD_JSON_BUILD_PAIR_INTEGER("DaysLeft", daysleft),
+			    SD_JSON_BUILD_PAIR_INTEGER("Expired", r),
+			    SD_JSON_BUILD_PAIR_BOOLEAN("PWChangeAble", pwchangeable));
+}
+
 /* Send a messages to systemd daemon, that inicialization of daemon
    is finished and daemon is ready to accept connections. */
 static void
@@ -661,6 +787,7 @@ run_varlink (void)
   r = sd_varlink_server_bind_method_many (varlink_server,
 					  "org.openSUSE.pwaccess.GetUserRecord",  vl_method_get_user_record,
 					  "org.openSUSE.pwaccess.VerifyPassword", vl_method_verify_password,
+					  "org.openSUSE.pwaccess.ExpiredCheck",   vl_method_expired_check,
 					  "org.openSUSE.pwaccess.GetEnvironment", vl_method_get_environment,
 					  "org.openSUSE.pwaccess.Ping",           vl_method_ping,
 					  "org.openSUSE.pwaccess.Quit",           vl_method_quit,

@@ -56,6 +56,11 @@ static SD_VARLINK_DEFINE_METHOD(
                 SD_VARLINK_DEFINE_INPUT(nullOK, SD_VARLINK_BOOL, SD_VARLINK_NULLABLE));
 
 static SD_VARLINK_DEFINE_METHOD(
+                ExpiredCheck,
+                SD_VARLINK_FIELD_COMMENT("The account to check if expired."),
+                SD_VARLINK_DEFINE_INPUT(userName, SD_VARLINK_STRING, 0));
+
+static SD_VARLINK_DEFINE_METHOD(
 		Quit,
 		SD_VARLINK_FIELD_COMMENT("Stop the daemon"),
 		SD_VARLINK_DEFINE_INPUT(ExitCode, SD_VARLINK_INT, SD_VARLINK_NULLABLE),

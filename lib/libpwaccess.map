@@ -1,5 +1,6 @@
 LIBPWACCESS_0.1 {
   global:
+	pwaccess_check_expired;
 	pwaccess_get_user_record;
         pwaccess_verify_password;
 	struct_passwd_freep;
