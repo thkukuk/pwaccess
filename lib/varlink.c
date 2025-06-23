@@ -223,7 +223,7 @@ pwaccess_get_user_record(int64_t uid, const char *user, struct passwd **ret_pw, 
       return r;
     }
 
-  if (!sd_json_variant_is_null(p.content_shadow))
+  if (!sd_json_variant_is_null(p.content_shadow) && sd_json_variant_elements(p.content_shadow) > 0)
     {
       static const sd_json_dispatch_field dispatch_shadow_table[] = {
 	{ "name",   SD_JSON_VARIANT_STRING, sd_json_dispatch_string, offsetof(struct spwd, sp_namp),   SD_JSON_MANDATORY },
