@@ -76,7 +76,7 @@ index b95f95e6..67434c25 100644
  
  #include <security/_pam_macros.h>
  #include <security/pam_modules.h>
-@@ -515,6 +518,89 @@ int _unix_comesfromsource(pam_handle_t *pamh,
+@@ -515,6 +518,91 @@ int _unix_comesfromsource(pam_handle_t *pamh,
  #include <sys/types.h>
  #include <sys/wait.h>
  
@@ -104,6 +104,8 @@ index b95f95e6..67434c25 100644
 +
 +    if (dl > INT_MAX)
 +        *daysleft = INT_MAX;
++    else if (dl < INT_MIN)
++        *daysleft = INT_MIN;
 +    else
 +        *daysleft = dl;
 +
@@ -166,7 +168,7 @@ index b95f95e6..67434c25 100644
  static int _unix_run_helper_binary(pam_handle_t *pamh, const char *passwd,
  				   unsigned long long ctrl, const char *user)
  {
-@@ -686,6 +772,13 @@ _unix_blankpasswd (pam_handle_t *pamh, unsigned long long ctrl, const char *name
+@@ -686,6 +774,13 @@ _unix_blankpasswd (pam_handle_t *pamh, unsigned long long ctrl, const char *name
  		retval = get_pwd_hash(pamh, name, &pwd, &salt);
  
  		if (retval == PAM_UNIX_RUN_HELPER) {
@@ -180,7 +182,7 @@ index b95f95e6..67434c25 100644
  			if (_unix_run_helper_binary(pamh, NULL, ctrl, name) == PAM_SUCCESS)
  				blank = nonexistent_check;
  		} else if (retval == PAM_USER_UNKNOWN) {
-@@ -742,6 +835,11 @@ int _unix_verify_password(pam_handle_t * pamh, const char *name
+@@ -742,6 +837,11 @@ int _unix_verify_password(pam_handle_t * pamh, const char *name
  	if (retval != PAM_SUCCESS) {
  		if (retval == PAM_UNIX_RUN_HELPER) {
  			D(("running helper binary"));
@@ -192,7 +194,7 @@ index b95f95e6..67434c25 100644
  			retval = _unix_run_helper_binary(pamh, p, ctrl, name);
  		} else {
  			D(("user's record unavailable"));
-@@ -881,7 +979,11 @@ _unix_verify_user(pam_handle_t *pamh,
+@@ -881,7 +981,11 @@ _unix_verify_user(pam_handle_t *pamh,
          return PAM_SUCCESS;
  
      if (retval == PAM_UNIX_RUN_HELPER) {
