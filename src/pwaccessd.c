@@ -292,7 +292,7 @@ vl_method_get_user_record(sd_varlink *link, sd_json_variant *parameters,
     }
 
   struct passwd *pw = NULL;
-  errno = 0; /* to find out if getpwuid/getpwnam succeed and there is no entry of if there was an error */
+  errno = 0; /* to find out if getpwuid/getpwnam succeed and there is no entry if there was an error */
   if (p.uid != -1)
     pw = getpwuid(p.uid);
   else
@@ -811,7 +811,7 @@ run_varlink (void)
   r = sd_varlink_server_listen_auto (varlink_server);
   if (r < 0)
     {
-      log_msg (LOG_ERR, "Failed to listens: %s", strerror (-r));
+      log_msg (LOG_ERR, "Failed to listen: %s", strerror (-r));
       return r;
     }
 
