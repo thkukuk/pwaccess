@@ -362,7 +362,7 @@ vl_method_get_user_record(sd_varlink *link, sd_json_variant *parameters,
       if (asprintf(&error, "JSON merge object passwd failed: %s",
 		   strerror(-r)) < 0)
 	error = NULL;
-      log_msg(LOG_ERR, "%s", error);
+      log_msg(LOG_ERR, "%s", stroom(error));
       return sd_varlink_errorbo(link, "org.openSUSE.pwaccess.InternalError",
 				SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
 				SD_JSON_BUILD_PAIR_STRING("ErrorMsg", stroom(error)));
@@ -386,7 +386,7 @@ vl_method_get_user_record(sd_varlink *link, sd_json_variant *parameters,
 	  if (asprintf(&error, "JSON merge object shadow failed: %s",
 		       strerror(-r)) < 0)
 	    error = NULL;
-	  log_msg(LOG_ERR, "%s", error);
+	  log_msg(LOG_ERR, "%s", stroom(error));
 	  return sd_varlink_errorbo(link, "org.openSUSE.pwaccess.InternalError",
 				    SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
 				    SD_JSON_BUILD_PAIR_STRING("ErrorMsg", stroom(error)));
@@ -406,7 +406,7 @@ vl_method_get_user_record(sd_varlink *link, sd_json_variant *parameters,
       if (asprintf(&error, "JSON merge result object failed: %s",
 		   strerror(-r)) < 0)
 	error = NULL;
-      log_msg(LOG_ERR, "%s", error);
+      log_msg(LOG_ERR, "%s", stroom(error));
       return sd_varlink_errorbo(link, "org.openSUSE.pwaccess.InternalError",
 				SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
 				SD_JSON_BUILD_PAIR_STRING("ErrorMsg", stroom(error)));
