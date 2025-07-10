@@ -25,6 +25,8 @@
 #define USEC_PER_SEC  ((uint64_t) 1000000ULL)
 #define DEFAULT_EXIT_USEC (30*USEC_PER_SEC)
 
+static void log_msg (int, const char *, ...) __attribute__ ((__format__ (__printf__, 2, 3)));
+
 static int log_level = LOG_WARNING;
 static int socket_activation = false;
 
@@ -274,7 +276,7 @@ vl_method_get_user_record(sd_varlink *link, sd_json_variant *parameters,
       return r;
     }
 
-  log_msg(LOG_DEBUG, "GetUserRecord(%li,%s)", p.uid, strna(p.name));
+  log_msg(LOG_DEBUG, "GetUserRecord(%" PRId64 ",%s)", p.uid, strna(p.name));
 
   if (p.uid == -1 && (p.name == NULL || isempty(p.name)))
     {
@@ -302,7 +304,7 @@ vl_method_get_user_record(sd_varlink *link, sd_json_variant *parameters,
     {
       if (errno == 0)
 	{
-	  log_msg(LOG_INFO, "User (%ld|%s) not found", p.uid, strna(p.name));
+	  log_msg(LOG_INFO, "User (%" PRId64 "|%s) not found", p.uid, strna(p.name));
 	  return sd_varlink_errorbo(link, "org.openSUSE.pwaccess.NoEntryFound",
 				    SD_JSON_BUILD_PAIR_BOOLEAN("Success", false));
 	}
@@ -674,7 +676,7 @@ vl_method_expired_check(sd_varlink *link, sd_json_variant *parameters,
 				SD_JSON_BUILD_PAIR_STRING("ErrorMsg", stroom(error)));
     }
 
-  log_msg(LOG_DEBUG, "expired_check(%s): expired: %d, daysleft: %d", p.name, r, daysleft);
+  log_msg(LOG_DEBUG, "expired_check(%s): expired: %d, daysleft: %ld", p.name, r, daysleft);
   return sd_varlink_replybo(link,
 			    SD_JSON_BUILD_PAIR_BOOLEAN("Success", true),
 			    SD_JSON_BUILD_PAIR_INTEGER("DaysLeft", daysleft),
