@@ -536,7 +536,7 @@ vl_method_verify_password(sd_varlink *link, sd_json_variant *parameters,
     {
       if (r == VERIFY_FAILED) /* password does not match */
 	{
-	  log_msg(LOG_DEBUG, "verify_password (%s): password does not match", p.name);
+	  log_msg(LOG_DEBUG, "verify_password (%s): password does not match", strna(p.name));
 	  return sd_varlink_replybo(link, SD_JSON_BUILD_PAIR_BOOLEAN("Success", false));
 	}
       else /* libcrypt/internal error */
@@ -555,7 +555,7 @@ vl_method_verify_password(sd_varlink *link, sd_json_variant *parameters,
 	}
     }
 
-  log_msg(LOG_DEBUG, "verify_password (%s): password matches", p.name);
+  log_msg(LOG_DEBUG, "verify_password (%s): password matches", strna(p.name));
   return sd_varlink_replybo(link, SD_JSON_BUILD_PAIR_BOOLEAN("Success", true));
 }
 
@@ -676,7 +676,7 @@ vl_method_expired_check(sd_varlink *link, sd_json_variant *parameters,
 				SD_JSON_BUILD_PAIR_STRING("ErrorMsg", stroom(error)));
     }
 
-  log_msg(LOG_DEBUG, "expired_check(%s): expired: %d, daysleft: %ld", p.name, r, daysleft);
+  log_msg(LOG_DEBUG, "expired_check(%s): expired: %d, daysleft: %ld", strna(p.name), r, daysleft);
   return sd_varlink_replybo(link,
 			    SD_JSON_BUILD_PAIR_BOOLEAN("Success", true),
 			    SD_JSON_BUILD_PAIR_INTEGER("DaysLeft", daysleft),
