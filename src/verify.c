@@ -17,7 +17,9 @@ is_shadow(const struct passwd *pw)
   assert(pw);
 
   if (streq(pw->pw_passwd, "x") ||
-      ((pw->pw_passwd[0] == '#') &&
+      (pw->pw_passwd &&
+       strlen(pw->pw_passwd) > 2 &&
+       (pw->pw_passwd[0] == '#') &&
        (pw->pw_passwd[1] == '#') &&
        streq(pw->pw_name, pw->pw_passwd + 2)))
     return true;
@@ -115,11 +117,11 @@ verify_password(const char *hash, const char *p, bool nullok)
 {
   _cleanup_free_ char *pp = NULL;
 
-  if (strempty(p) && !nullok)
+  if (isempty(p) && !nullok)
     return VERIFY_FAILED;
   else if (strlen(hash) == 0)
     {
-      if (strempty(p) && nullok)
+      if (isempty(p) && nullok)
 	return VERIFY_OK;
       else
 	return VERIFY_FAILED;
