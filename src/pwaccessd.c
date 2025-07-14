@@ -339,7 +339,7 @@ vl_method_get_user_record(sd_varlink *link, sd_json_variant *parameters,
 	  char *cp;
 
 	  if (no_valid_name(p.name))
-	    cp = "name contains invalid characters;
+	    cp = "name contains invalid characters";
 	  else
 	    cp = p.name;
 
