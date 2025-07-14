@@ -170,38 +170,6 @@ vl_method_get_environment(sd_varlink *link, sd_json_variant *parameters,
 #endif
 }
 
-static bool
-no_valid_name(const char *name)
-{
-  /* This function tests if the name has invalid characters, not if the
-     name is really valid.
-
-     User/group names must match BRE regex:
-     [a-zA-Z0-9_.][a-zA-Z0-9_.-]*$\?
-
-     Reject every name containing additional characters.
-  */
-
-  if (isempty(name))
-    return true;
-
-  while (*name != '\0')
-    {
-      if (!((*name >= 'a' && *name <= 'z') ||
-	    (*name >= 'A' && *name <= 'Z') ||
-	    (*name >= '0' && *name <= '9') ||
-	    *name == '_' ||
-	    *name == '.' ||
-	    *name == '-' ||
-	    *name == '$')
-	  )
-	return true;
-      ++name;
-    }
-
-  return false;
-}
-
 static int
 vl_method_quit (sd_varlink *link, sd_json_variant *parameters,
 		  sd_varlink_method_flags_t _unused_(flags),
@@ -253,6 +221,38 @@ vl_method_quit (sd_varlink *link, sd_json_variant *parameters,
   return sd_varlink_replybo (link, SD_JSON_BUILD_PAIR_BOOLEAN("Success", true));
 }
 
+static bool
+no_valid_name(const char *name)
+{
+  /* This function tests if the name has invalid characters, not if the
+     name is really valid.
+
+     User/group names must match BRE regex:
+     [a-zA-Z0-9_.][a-zA-Z0-9_.-]*$\?
+
+     Reject every name containing additional characters.
+  */
+
+  if (isempty(name))
+    return true;
+
+  while (*name != '\0')
+    {
+      if (!((*name >= 'a' && *name <= 'z') ||
+	    (*name >= 'A' && *name <= 'Z') ||
+	    (*name >= '0' && *name <= '9') ||
+	    *name == '_' ||
+	    *name == '.' ||
+	    *name == '-' ||
+	    *name == '$')
+	  )
+	return true;
+      ++name;
+    }
+
+  return false;
+}
+
 struct parameters {
   int64_t uid;
   char *name;
@@ -294,17 +294,17 @@ vl_method_get_user_record(sd_varlink *link, sd_json_variant *parameters,
 
   log_msg(LOG_INFO, "Varlink method \"GetUserRecord\" called...");
 
-  r = sd_varlink_dispatch(link, parameters, dispatch_table, &p);
-  if (r < 0)
-    {
-      log_msg(LOG_ERR, "GetUserRecord request: varlink dispatch failed: %s", strerror(-r));
-      return r;
-    }
-
   r = sd_varlink_get_peer_uid(link, &peer_uid);
   if (r < 0)
     {
       log_msg(LOG_ERR, "Failed to get peer UID: %s", strerror(-r));
+      return r;
+    }
+
+  r = sd_varlink_dispatch(link, parameters, dispatch_table, &p);
+  if (r < 0)
+    {
+      log_msg(LOG_ERR, "GetUserRecord request: varlink dispatch failed: %s", strerror(-r));
       return r;
     }
 
@@ -625,17 +625,17 @@ vl_method_expired_check(sd_varlink *link, sd_json_variant *parameters,
 
   log_msg(LOG_INFO, "Varlink method \"ExpiredCheck\" called...");
 
-  r = sd_varlink_dispatch(link, parameters, dispatch_table, &p);
-  if (r < 0)
-    {
-      log_msg(LOG_ERR, "ExpiredCheck request: varlink dispatch failed: %s", strerror(-r));
-      return r;
-    }
-
   r = sd_varlink_get_peer_uid(link, &peer_uid);
   if (r < 0)
     {
       log_msg(LOG_ERR, "Failed to get peer UID: %s", strerror(-r));
+      return r;
+    }
+
+  r = sd_varlink_dispatch(link, parameters, dispatch_table, &p);
+  if (r < 0)
+    {
+      log_msg(LOG_ERR, "ExpiredCheck request: varlink dispatch failed: %s", strerror(-r));
       return r;
     }
 
