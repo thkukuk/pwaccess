@@ -253,6 +253,39 @@ no_valid_name(const char *name)
   return false;
 }
 
+static int
+error_user_not_found(sd_varlink *link, int64_t uid, const char *name)
+{
+  if (errno == 0)
+    {
+      const char *cp;
+
+      if (no_valid_name(name))
+	cp = "<name contains invalid characters>";
+      else
+	cp = name;
+
+      if (uid >= 0)
+	log_msg(LOG_INFO, "User (%" PRId64 "|%s) not found", uid, strna(cp));
+      else
+	log_msg(LOG_INFO, "User '%s' not found", strna(cp));
+      return sd_varlink_errorbo(link, "org.openSUSE.pwaccess.NoEntryFound",
+				SD_JSON_BUILD_PAIR_BOOLEAN("Success", false));
+    }
+  else
+    {
+      _cleanup_free_ char *error = NULL;
+
+      if (asprintf(&error, "getpwnam() failed: %m") < 0)
+	error = NULL;
+      log_msg(LOG_ERR, "%s", stroom(error));
+      return sd_varlink_errorbo(link, "org.openSUSE.pwaccess.InternalError",
+				SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
+				SD_JSON_BUILD_PAIR_STRING("ErrorMsg", stroom(error)));
+    }
+}
+
+
 struct parameters {
   int64_t uid;
   char *name;
@@ -333,32 +366,7 @@ vl_method_get_user_record(sd_varlink *link, sd_json_variant *parameters,
     pw = getpwnam(p.name);
 
   if (pw == NULL)
-    {
-      if (errno == 0)
-	{
-	  char *cp;
-
-	  if (no_valid_name(p.name))
-	    cp = "name contains invalid characters";
-	  else
-	    cp = p.name;
-
-	  log_msg(LOG_INFO, "User (%" PRId64 "|%s) not found", p.uid, strna(cp));
-	  return sd_varlink_errorbo(link, "org.openSUSE.pwaccess.NoEntryFound",
-				    SD_JSON_BUILD_PAIR_BOOLEAN("Success", false));
-	}
-      else
-	{
-	  _cleanup_free_ char *error = NULL;
-
-	  if (asprintf(&error, "getpwnam() failed: %m") < 0)
-	    error = NULL;
-	  log_msg(LOG_ERR, "%s", stroom(error));
-	  return sd_varlink_errorbo(link, "org.openSUSE.pwaccess.InternalError",
-				    SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
-				    SD_JSON_BUILD_PAIR_STRING("ErrorMsg", stroom(error)));
-	}
-    }
+    return error_user_not_found(link, p.uid, p.name);
 
   /* Get shadow entry */
   errno = 0;
@@ -502,32 +510,7 @@ vl_method_verify_password(sd_varlink *link, sd_json_variant *parameters,
   pw = getpwnam(p.name);
 
   if (pw == NULL)
-    {
-      if (errno == 0)
-	{
-	  char *cp;
-
-	  if (no_valid_name(p.name))
-	    cp = "name contains invalid characters";
-	  else
-	    cp = p.name;
-
-	  log_msg(LOG_INFO, "User '%s' not found", strna(cp));
-	  return sd_varlink_errorbo(link, "org.openSUSE.pwaccess.NoEntryFound",
-				    SD_JSON_BUILD_PAIR_BOOLEAN("Success", false));
-	}
-      else
-	{
-	  _cleanup_free_ char *error = NULL;
-
-	  if (asprintf(&error, "getpwnam() failed: %m") < 0)
-	    error = NULL;
-	  log_msg(LOG_ERR, "%s", stroom(error));
-	  return sd_varlink_errorbo(link, "org.openSUSE.pwaccess.InternalError",
-				    SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
-				    SD_JSON_BUILD_PAIR_STRING("ErrorMsg", stroom(error)));
-	}
-    }
+    return error_user_not_found(link, -1, p.name);
 
   /* Don't verify password if query does not come from root
      and result is not the one of the calling user */
@@ -652,32 +635,7 @@ vl_method_expired_check(sd_varlink *link, sd_json_variant *parameters,
   pw = getpwnam(p.name);
 
   if (pw == NULL)
-    {
-      if (errno == 0)
-	{
-	  char *cp;
-
-	  if (no_valid_name(p.name))
-	    cp = "name contains invalid characters";
-	  else
-	    cp = p.name;
-
-	  log_msg(LOG_INFO, "User '%s' not found", strna(cp));
-	  return sd_varlink_errorbo(link, "org.openSUSE.pwaccess.NoEntryFound",
-				    SD_JSON_BUILD_PAIR_BOOLEAN("Success", false));
-	}
-      else
-	{
-	  _cleanup_free_ char *error = NULL;
-
-	  if (asprintf(&error, "getpwnam() failed: %m") < 0)
-	    error = NULL;
-	  log_msg(LOG_ERR, "%s", stroom(error));
-	  return sd_varlink_errorbo(link, "org.openSUSE.pwaccess.InternalError",
-				    SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
-				    SD_JSON_BUILD_PAIR_STRING("ErrorMsg", stroom(error)));
-	}
-    }
+    return error_user_not_found(link, -1, p.name);
 
   /* Don't verify password if query does not come from root
      and result is not the one of the calling user */
