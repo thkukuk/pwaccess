@@ -135,10 +135,6 @@ vl_method_get_environment(sd_varlink *link, sd_json_variant *parameters,
 
   log_msg (LOG_INFO, "Varlink method \"GetEnvironment\" called...");
 
-  r = sd_varlink_dispatch(link, parameters, NULL, NULL);
-  if (r != 0)
-    return r;
-
   uid_t peer_uid;
   r = sd_varlink_get_peer_uid(link, &peer_uid);
   if (r < 0)
@@ -151,6 +147,10 @@ vl_method_get_environment(sd_varlink *link, sd_json_variant *parameters,
       log_msg(LOG_WARNING, "GetEnvironment: peer UID %i denied", peer_uid);
       return sd_varlink_error(link, SD_VARLINK_ERROR_PERMISSION_DENIED, parameters);
     }
+
+  r = sd_varlink_dispatch(link, parameters, NULL, NULL);
+  if (r != 0)
+    return r;
 
 #if 0 /* XXX */
   for (char **e = environ; *e != 0; e++)
@@ -175,27 +175,16 @@ vl_method_quit (sd_varlink *link, sd_json_variant *parameters,
 		  sd_varlink_method_flags_t _unused_(flags),
 		  void *userdata)
 {
-  struct p {
-    int code;
-  } p = {
-    .code = 0
-  };
   static const sd_json_dispatch_field dispatch_table[] = {
-    { "ExitCode", SD_JSON_VARIANT_INTEGER, sd_json_dispatch_int, offsetof(struct p, code), 0 },
+    { "ExitCode", SD_JSON_VARIANT_INTEGER, sd_json_dispatch_int, 0, 0 },
     {}
   };
   uid_t peer_uid;
   sd_event *loop = userdata;
+  int exit_code = 0;
   int r;
 
   log_msg (LOG_INFO, "Varlink method \"Quit\" called...");
-
-  r = sd_varlink_dispatch (link, parameters, dispatch_table, /* userdata= */ NULL);
-  if (r != 0)
-    {
-      log_msg (LOG_ERR, "Quit request: varlink dispatch failed: %s", strerror (-r));
-      return r;
-    }
 
   r = sd_varlink_get_peer_uid(link, &peer_uid);
   if (r < 0)
@@ -209,7 +198,14 @@ vl_method_quit (sd_varlink *link, sd_json_variant *parameters,
       return sd_varlink_error(link, SD_VARLINK_ERROR_PERMISSION_DENIED, parameters);
     }
 
-  r = sd_event_exit (loop, p.code);
+  r = sd_varlink_dispatch (link, parameters, dispatch_table, &exit_code);
+  if (r != 0)
+    {
+      log_msg (LOG_ERR, "Quit request: varlink dispatch failed: %s", strerror (-r));
+      return r;
+    }
+
+  r = sd_event_exit (loop, exit_code);
   if (r != 0)
     {
       log_msg (LOG_ERR, "Quit request: disabling event loop failed: %s",
@@ -321,6 +317,8 @@ vl_method_get_user_record(sd_varlink *link, sd_json_variant *parameters,
     { "userName", SD_JSON_VARIANT_STRING,  sd_json_dispatch_string, offsetof(struct parameters, name), 0},
     {}
   };
+  struct passwd *pw = NULL;
+  struct spwd *sp = NULL;
   bool complete = true;
   uid_t peer_uid;
   int r;
@@ -358,7 +356,6 @@ vl_method_get_user_record(sd_varlink *link, sd_json_variant *parameters,
 				SD_JSON_BUILD_PAIR_STRING("ErrorMsg", "UID and user name specified"));
     }
 
-  struct passwd *pw = NULL;
   errno = 0; /* to find out if getpwuid/getpwnam succeed and there is no entry if there was an error */
   if (p.uid != -1)
     pw = getpwuid(p.uid);
@@ -367,21 +364,6 @@ vl_method_get_user_record(sd_varlink *link, sd_json_variant *parameters,
 
   if (pw == NULL)
     return error_user_not_found(link, p.uid, p.name);
-
-  /* Get shadow entry */
-  errno = 0;
-  struct spwd *sp = getspnam(pw->pw_name);
-  if (sp == NULL && errno != 0)
-    {
-      _cleanup_free_ char *error = NULL;
-
-      if (asprintf(&error, "getspnam() failed: %m") < 0)
-	error = NULL;
-      log_msg(LOG_ERR, "%s", stroom(error));
-      return sd_varlink_errorbo(link, "org.openSUSE.pwaccess.InternalError",
-				SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
-				SD_JSON_BUILD_PAIR_STRING("ErrorMsg", stroom(error)));
-    }
 
   /* Don't return password if query does not come from root
      and result is not the one of the calling user */
@@ -393,6 +375,23 @@ vl_method_get_user_record(sd_varlink *link, sd_json_variant *parameters,
       complete = false;
       /* no shadow entries for others */
       sp = NULL;
+    }
+  else
+    {
+      /* Get shadow entry */
+      errno = 0;
+      sp = getspnam(pw->pw_name);
+      if (sp == NULL && errno != 0)
+	{
+	  _cleanup_free_ char *error = NULL;
+
+	  if (asprintf(&error, "getspnam() failed: %m") < 0)
+	    error = NULL;
+	  log_msg(LOG_ERR, "%s", stroom(error));
+	  return sd_varlink_errorbo(link, "org.openSUSE.pwaccess.InternalError",
+				    SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
+				    SD_JSON_BUILD_PAIR_STRING("ErrorMsg", stroom(error)));
+	}
     }
 
   r = sd_json_variant_merge_objectbo(&passwd,
