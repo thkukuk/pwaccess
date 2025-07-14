@@ -170,6 +170,38 @@ vl_method_get_environment(sd_varlink *link, sd_json_variant *parameters,
 #endif
 }
 
+static bool
+no_valid_name(const char *name)
+{
+  /* This function tests if the name has invalid characters, not if the
+     name is really valid.
+
+     User/group names must match BRE regex:
+     [a-zA-Z0-9_.][a-zA-Z0-9_.-]*$\?
+
+     Reject every name containing additional characters.
+  */
+
+  if (isempty(name))
+    return true;
+
+  while (*name != '\0')
+    {
+      if (!((*name >= 'a' && *name <= 'z') ||
+	    (*name >= 'A' && *name <= 'Z') ||
+	    (*name >= '0' && *name <= '9') ||
+	    *name == '_' ||
+	    *name == '.' ||
+	    *name == '-' ||
+	    *name == '$')
+	  )
+	return true;
+      ++name;
+    }
+
+  return false;
+}
+
 static int
 vl_method_quit (sd_varlink *link, sd_json_variant *parameters,
 		  sd_varlink_method_flags_t _unused_(flags),
@@ -278,14 +310,14 @@ vl_method_get_user_record(sd_varlink *link, sd_json_variant *parameters,
 
   log_msg(LOG_DEBUG, "GetUserRecord(%" PRId64 ",%s)", p.uid, strna(p.name));
 
-  if (p.uid == -1 && (p.name == NULL || isempty(p.name)))
+  if (p.uid == -1 && isempty(p.name))
     {
       log_msg(LOG_ERR, "GetUserRecord request: no UID nor user name specified");
       return sd_varlink_errorbo(link, "org.openSUSE.pwaccess.InvalidParameter",
 				SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
 				SD_JSON_BUILD_PAIR_STRING("ErrorMsg", "No UID nor user name specified"));
     }
-  if (p.uid != -1 && p.name != NULL)
+  if (p.uid != -1 && !isempty(p.name))
     {
       log_msg(LOG_ERR, "GetUserRecord request: UID and user name specified");
       return sd_varlink_errorbo(link, "org.openSUSE.pwaccess.InvalidParameter",
@@ -304,7 +336,14 @@ vl_method_get_user_record(sd_varlink *link, sd_json_variant *parameters,
     {
       if (errno == 0)
 	{
-	  log_msg(LOG_INFO, "User (%" PRId64 "|%s) not found", p.uid, strna(p.name));
+	  char *cp;
+
+	  if (no_valid_name(p.name))
+	    cp = "name contains invalid characters;
+	  else
+	    cp = p.name;
+
+	  log_msg(LOG_INFO, "User (%" PRId64 "|%s) not found", p.uid, strna(cp));
 	  return sd_varlink_errorbo(link, "org.openSUSE.pwaccess.NoEntryFound",
 				    SD_JSON_BUILD_PAIR_BOOLEAN("Success", false));
 	}
@@ -436,13 +475,6 @@ vl_method_verify_password(sd_varlink *link, sd_json_variant *parameters,
 
   log_msg(LOG_INFO, "Varlink method \"VerifyPassword\" called...");
 
-  r = sd_varlink_dispatch(link, parameters, dispatch_table, &p);
-  if (r < 0)
-    {
-      log_msg(LOG_ERR, "VerifyPassword request: varlink dispatch failed: %s", strerror(-r));
-      return r;
-    }
-
   r = sd_varlink_get_peer_uid(link, &peer_uid);
   if (r < 0)
     {
@@ -450,7 +482,14 @@ vl_method_verify_password(sd_varlink *link, sd_json_variant *parameters,
       return r;
     }
 
-  if (p.name == NULL || isempty(p.name))
+  r = sd_varlink_dispatch(link, parameters, dispatch_table, &p);
+  if (r < 0)
+    {
+      log_msg(LOG_ERR, "VerifyPassword request: varlink dispatch failed: %s", strerror(-r));
+      return r;
+    }
+
+  if (isempty(p.name))
     {
       log_msg(LOG_ERR, "VerifyPassword request: no user name specified");
       return sd_varlink_errorbo(link, "org.openSUSE.pwaccess.InvalidParameter",
@@ -466,7 +505,14 @@ vl_method_verify_password(sd_varlink *link, sd_json_variant *parameters,
     {
       if (errno == 0)
 	{
-	  log_msg(LOG_INFO, "User '%s' not found", strna(p.name));
+	  char *cp;
+
+	  if (no_valid_name(p.name))
+	    cp = "name contains invalid characters";
+	  else
+	    cp = p.name;
+
+	  log_msg(LOG_INFO, "User '%s' not found", strna(cp));
 	  return sd_varlink_errorbo(link, "org.openSUSE.pwaccess.NoEntryFound",
 				    SD_JSON_BUILD_PAIR_BOOLEAN("Success", false));
 	}
@@ -536,7 +582,7 @@ vl_method_verify_password(sd_varlink *link, sd_json_variant *parameters,
     {
       if (r == VERIFY_FAILED) /* password does not match */
 	{
-	  log_msg(LOG_DEBUG, "verify_password (%s): password does not match", strna(p.name));
+	  log_msg(LOG_DEBUG, "verify_password (%s): password does not match", strna(pw->pw_name));
 	  return sd_varlink_replybo(link, SD_JSON_BUILD_PAIR_BOOLEAN("Success", false));
 	}
       else /* libcrypt/internal error */
@@ -555,7 +601,7 @@ vl_method_verify_password(sd_varlink *link, sd_json_variant *parameters,
 	}
     }
 
-  log_msg(LOG_DEBUG, "verify_password (%s): password matches", strna(p.name));
+  log_msg(LOG_DEBUG, "verify_password (%s): password matches", strna(pw->pw_name));
   return sd_varlink_replybo(link, SD_JSON_BUILD_PAIR_BOOLEAN("Success", true));
 }
 
@@ -593,7 +639,7 @@ vl_method_expired_check(sd_varlink *link, sd_json_variant *parameters,
       return r;
     }
 
-  if (p.name == NULL || isempty(p.name))
+  if (isempty(p.name))
     {
       log_msg(LOG_ERR, "ExpiredCheck request: no user name specified");
       return sd_varlink_errorbo(link, "org.openSUSE.pwaccess.InvalidParameter",
@@ -609,7 +655,14 @@ vl_method_expired_check(sd_varlink *link, sd_json_variant *parameters,
     {
       if (errno == 0)
 	{
-	  log_msg(LOG_INFO, "User '%s' not found", strna(p.name));
+	  char *cp;
+
+	  if (no_valid_name(p.name))
+	    cp = "name contains invalid characters";
+	  else
+	    cp = p.name;
+
+	  log_msg(LOG_INFO, "User '%s' not found", strna(cp));
 	  return sd_varlink_errorbo(link, "org.openSUSE.pwaccess.NoEntryFound",
 				    SD_JSON_BUILD_PAIR_BOOLEAN("Success", false));
 	}
