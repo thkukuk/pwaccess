@@ -1,4 +1,4 @@
-commit b0cfd91615bb27ead99b56b89170748862665580
+commit 1911492842b892e9ea1d42eb12bb31dff632ec58
 Author: Thorsten Kukuk <kukuk@suse.com>
 Date:   Fri Jun 20 14:01:48 2025 +0200
 
@@ -46,7 +46,7 @@ index dce38b90..b5914358 100644
  if module == 'pam_userdb'
    if not enable_pam_userdb
 diff --git a/modules/pam_unix/pam_unix_passwd.c b/modules/pam_unix/pam_unix_passwd.c
-index cdd253e3..30c4db73 100644
+index dbc9fb76..f2f5900e 100644
 --- a/modules/pam_unix/pam_unix_passwd.c
 +++ b/modules/pam_unix/pam_unix_passwd.c
 @@ -522,7 +522,11 @@ static int _unix_verify_shadow(pam_handle_t *pamh, const char *user, unsigned lo
@@ -55,15 +55,15 @@ index cdd253e3..30c4db73 100644
  	if (retval == PAM_UNIX_RUN_HELPER) {
 -		retval = _unix_run_verify_binary(pamh, ctrl, user, &daysleft);
 +#ifdef USE_PWACCESS
-+	        retval = _unix_verify_pwaccess(pamh, user, &daysleft);
-+                if (retval == PAM_SYSTEM_ERR) /* pwaccess not running */
++	        retval = _unix_pwaccess_check_expired(pamh, user, &daysleft);
++		if (retval == PAM_SYSTEM_ERR) /* pwaccess not running */
 +#endif
-+		        retval = _unix_run_verify_binary(pamh, ctrl, user, &daysleft);
++			retval = _unix_run_verify_binary(pamh, ctrl, user, &daysleft);
  		if (retval == PAM_AUTH_ERR || retval == PAM_USER_UNKNOWN)
  			return retval;
  	}
 diff --git a/modules/pam_unix/support.c b/modules/pam_unix/support.c
-index b95f95e6..67434c25 100644
+index 652e35b2..5c0f282e 100644
 --- a/modules/pam_unix/support.c
 +++ b/modules/pam_unix/support.c
 @@ -22,6 +22,9 @@
@@ -76,36 +76,36 @@ index b95f95e6..67434c25 100644
  
  #include <security/_pam_macros.h>
  #include <security/pam_modules.h>
-@@ -515,6 +518,89 @@ int _unix_comesfromsource(pam_handle_t *pamh,
+@@ -515,6 +518,93 @@ int _unix_comesfromsource(pam_handle_t *pamh,
  #include <sys/types.h>
  #include <sys/wait.h>
  
 +#ifdef USE_PWACCESS
-+int _unix_verify_pwaccess(pam_handle_t *pamh, const char *user,
-+			  int *daysleft)
++int _unix_pwaccess_check_expired(pam_handle_t *pamh, const char *user,
++				 long *daysleft)
 +{
 +    int  r, retval = PAM_SYSTEM_ERR;
 +    bool pwchangeable = false;
 +    long dl = -1;
++    char *error = NULL;
 +
 +    D(("called."));
 +
-+    r = pwaccess_check_expired(user, &dl, &pwchangeable, NULL);
-+    if (r < 0) {
-+	if (PWACCESS_IS_NOT_RUNNING(r))
++    r = pwaccess_check_expired(user, &dl, &pwchangeable, &error);
++    if (r < 0 || error) {
++        if (PWACCESS_IS_NOT_RUNNING(r)) {
++	    free(error);
 +	    return PAM_SYSTEM_ERR;
-+
-+	if (r == -ENOENT)
++	}
++	if (r == -ENOENT) {
++	    free(error);
 +	    return PAM_USER_UNKNOWN;
-+
-+	pam_syslog(pamh, LOG_ERR, "pwaccess failed: %s", strerror(-r));
++	}
++	pam_syslog(pamh, LOG_ERR, "pwaccess failed: %s", error ? error : strerror(-r));
++	free(error);
 +	return PAM_AUTHINFO_UNAVAIL;
 +    }
-+
-+    if (dl > INT_MAX)
-+        *daysleft = INT_MAX;
-+    else
-+        *daysleft = dl;
++    *daysleft = dl;
 +
 +    switch(r) {
 +        case PWA_EXPIRED_NO:
@@ -131,12 +131,13 @@ index b95f95e6..67434c25 100644
 +    return retval;
 +}
 +
-+static int _unix_use_pwaccess(pam_handle_t *pamh, const char *passwd,
++static int _unix_pwaccess_verify_password(pam_handle_t *pamh, const char *passwd,
 +			      unsigned long long ctrl, const char *user)
 +{
 +    int  r;
 +    bool authenticated = false;
 +    bool nullok = false;
++    char *error = NULL;
 +
 +    D(("called."));
 +
@@ -144,15 +145,18 @@ index b95f95e6..67434c25 100644
 +        nullok = true;
 +
 +
-+    r = pwaccess_verify_password(user, passwd, nullok, &authenticated, NULL);
-+    if (r < 0) {
-+	if (PWACCESS_IS_NOT_RUNNING(r))
++    r = pwaccess_verify_password(user, passwd, nullok, &authenticated, &error);
++    if (r < 0 || error) {
++        if (PWACCESS_IS_NOT_RUNNING(r)) {
++	    free(error);
 +	    return PAM_SYSTEM_ERR;
-+
-+	if (r == -ENOENT)
++	}
++	if (r == -ENOENT) {
++	    free(error);
 +	    return PAM_USER_UNKNOWN;
-+
-+	pam_syslog(pamh, LOG_ERR, "pwaccess failed: %s", strerror(-r));
++	}
++	pam_syslog(pamh, LOG_ERR, "pwaccess failed: %s", error ? error : strerror(-r));
++	free(error);
 +	return PAM_AUTHINFO_UNAVAIL;
 +    }
 +
@@ -166,12 +170,12 @@ index b95f95e6..67434c25 100644
  static int _unix_run_helper_binary(pam_handle_t *pamh, const char *passwd,
  				   unsigned long long ctrl, const char *user)
  {
-@@ -686,6 +772,13 @@ _unix_blankpasswd (pam_handle_t *pamh, unsigned long long ctrl, const char *name
+@@ -686,6 +776,13 @@ _unix_blankpasswd (pam_handle_t *pamh, unsigned long long ctrl, const char *name
  		retval = get_pwd_hash(pamh, name, &pwd, &salt);
  
  		if (retval == PAM_UNIX_RUN_HELPER) {
 +#ifdef USE_PWACCESS
-+		        retval = _unix_use_pwaccess(pamh, NULL, ctrl, name);
++		        retval = _unix_pwaccess_verify_password(pamh, NULL, ctrl, name);
 +			if (retval == PAM_SUCCESS)
 +				blank = nonexistent_check;
 +			else if (retval != PAM_AUTH_ERR)
@@ -180,25 +184,25 @@ index b95f95e6..67434c25 100644
  			if (_unix_run_helper_binary(pamh, NULL, ctrl, name) == PAM_SUCCESS)
  				blank = nonexistent_check;
  		} else if (retval == PAM_USER_UNKNOWN) {
-@@ -742,6 +835,11 @@ int _unix_verify_password(pam_handle_t * pamh, const char *name
+@@ -742,6 +839,11 @@ int _unix_verify_password(pam_handle_t * pamh, const char *name
  	if (retval != PAM_SUCCESS) {
  		if (retval == PAM_UNIX_RUN_HELPER) {
  			D(("running helper binary"));
 +#ifdef USE_PWACCESS
-+			retval = _unix_use_pwaccess(pamh, p, ctrl, name);
++			retval = _unix_pwaccess_verify_password(pamh, p, ctrl, name);
 +			if (retval != PAM_SUCCESS && retval != PAM_AUTH_ERR)
 +			  /* Fallback to unix_chkpwd if pwaccess reports an error */
 +#endif
  			retval = _unix_run_helper_binary(pamh, p, ctrl, name);
  		} else {
  			D(("user's record unavailable"));
-@@ -881,7 +979,11 @@ _unix_verify_user(pam_handle_t *pamh,
+@@ -881,7 +983,11 @@ _unix_verify_user(pam_handle_t *pamh,
          return PAM_SUCCESS;
  
      if (retval == PAM_UNIX_RUN_HELPER) {
 -        retval = _unix_run_verify_binary(pamh, ctrl, name, daysleft);
 +#ifdef USE_PWACCESS
-+        retval = _unix_verify_pwaccess(pamh, name, daysleft);
++        retval = _unix_pwaccess_check_expired(pamh, name, daysleft);
 +        if (retval == PAM_SYSTEM_ERR) /* pwaccess not running */
 +#endif
 +	    retval = _unix_run_verify_binary(pamh, ctrl, name, daysleft);
@@ -206,13 +210,13 @@ index b95f95e6..67434c25 100644
              on(UNIX_BROKEN_SHADOW, ctrl))
              return PAM_SUCCESS;
 diff --git a/modules/pam_unix/support.h b/modules/pam_unix/support.h
-index e8f629d7..8a850422 100644
+index 759b7ba0..9061ab27 100644
 --- a/modules/pam_unix/support.h
 +++ b/modules/pam_unix/support.h
 @@ -179,4 +179,6 @@ extern int _unix_verify_user(pam_handle_t *pamh, unsigned long long ctrl,
  extern int _unix_run_verify_binary(pam_handle_t *pamh,
  				   unsigned long long ctrl,
- 				   const char *user, int *daysleft);
-+extern int _unix_verify_pwaccess(pam_handle_t *pamh,
-+				 const char *user, int *daysleft);
+ 				   const char *user, long *daysleft);
++extern int _unix_pwaccess_check_expired(pam_handle_t *pamh,
++					const char *user, long *daysleft);
  #endif /* _PAM_UNIX_SUPPORT_H */
