@@ -205,6 +205,11 @@ vl_method_quit (sd_varlink *link, sd_json_variant *parameters,
       return r;
     }
 
+  /* exit code must be negative, systemd will convert that to a positive
+     value */
+  if (exit_code > 0)
+    exit_code = -exit_code;
+
   r = sd_event_exit (loop, exit_code);
   if (r != 0)
     {
