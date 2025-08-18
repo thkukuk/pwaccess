@@ -19,7 +19,7 @@ conf = configuration_data()
 conf.set_quoted('VERSION', meson.project_version())
 conf.set_quoted('PACKAGE', meson.project_name())
 conf.set_quoted('_VARLINK_PWACCESS_SOCKET_DIR', '/run/pwaccess')
-conf.set_quoted('_VARLINK_PWACCESS_SOCKET', '/run/pwaccess/socket') 
+conf.set_quoted('_VARLINK_PWACCESS_SOCKET', '/run/pwaccess/socket')
 
 cc = meson.get_compiler('c')
 pkg = import('pkgconfig')
@@ -58,7 +58,12 @@ endif
 libexecdir = join_paths(prefixdir, get_option('libexecdir'))
 systemunitdir = prefixdir / 'lib/systemd/system'
 tmpfilesdir = prefixdir / 'lib/tmpfiles.d'
+pamlibdir = get_option('pamlibdir')
+if pamlibdir == ''
+        pamlibdir = get_option('libdir') / 'security'
+endif
 
+libpam = dependency('pam', required: true)
 libsystemd = dependency('libsystemd', version: '>= 257', required: true)
 libcrypt = dependency('libcrypt', 'libxcrypt', required: true)
 
@@ -96,10 +101,29 @@ executable('pwaccessd',
            install_dir : libexecdir,
            install : true)
 
+pam_unix_ng_c = files('src/pam_unix-ng-common.c', 'src/pam_unix-ng-session.c',
+                      'src/pam_unix-ng-acct.c', 'src/pam_unix-ng-auth.c', 
+                      'src/pam_unix-ng-passwd.c')
+pam_unix_ng_map = 'src/pam_unix-ng.map'
+pam_unix_ng_map_version = '-Wl,--version-script,@0@/@1@'.format(meson.current_source_dir(), pam_unix_ng_map)
+
+pam_unix_ng = shared_library(
+  'pam_unix-ng',
+  pam_unix_ng_c,
+  name_prefix : '',
+  include_directories : inc,
+  link_args : ['-shared', pam_unix_ng_map_version],
+  link_depends : pam_unix_ng_map,
+  link_with : libpwaccess,
+  dependencies : [libpam],
+  install : true,
+  install_dir : pamlibdir
+)
+
 subdir('units')
 
 # Unit tests
-#subdir('tests')
+subdir('tests')
 
 # Manual pages
 #subdir('man')

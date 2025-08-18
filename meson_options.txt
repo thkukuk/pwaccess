@@ -1,2 +1,4 @@
 option('man', type : 'feature', value : 'auto',
        description : 'build and install man pages')
+option('pamlibdir', type : 'string',
+       description : 'directory for PAM modules')
