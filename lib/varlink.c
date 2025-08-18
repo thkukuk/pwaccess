@@ -359,6 +359,11 @@ pwaccess_verify_password(const char *user, const char *password, bool nullok, bo
 }
 
 
+/* return values:
+   < 0: error occured
+     0: all fine
+   > 0: PWA_EXPIRED_*
+*/
 int
 pwaccess_check_expired(const char *user, long *daysleft, bool *pwchangeable, char **error)
 {
