@@ -101,14 +101,14 @@ executable('pwaccessd',
            install_dir : libexecdir,
            install : true)
 
-pam_unix_ng_c = files('src/pam_unix-ng-common.c', 'src/pam_unix-ng-session.c',
-                      'src/pam_unix-ng-acct.c', 'src/pam_unix-ng-auth.c', 
-                      'src/pam_unix-ng-passwd.c')
-pam_unix_ng_map = 'src/pam_unix-ng.map'
+pam_unix_ng_c = files('src/pam_unix_ng-common.c', 'src/pam_unix_ng-session.c',
+                      'src/pam_unix_ng-acct.c', 'src/pam_unix_ng-auth.c', 
+                      'src/pam_unix_ng-passwd.c')
+pam_unix_ng_map = 'src/pam_unix_ng.map'
 pam_unix_ng_map_version = '-Wl,--version-script,@0@/@1@'.format(meson.current_source_dir(), pam_unix_ng_map)
 
 pam_unix_ng = shared_library(
-  'pam_unix-ng',
+  'pam_unix_ng',
   pam_unix_ng_c,
   name_prefix : '',
   include_directories : inc,
