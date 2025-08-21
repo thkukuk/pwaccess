@@ -21,8 +21,8 @@ jobs:
     - name: Compile code
       run: meson compile -v -C build
 
-#    - name: Run tests
-#      run: meson test -v -C build
+    - name: Run tests
+      run: meson test -v -C build
 
   sanitizer:
     runs-on: ubuntu-latest
@@ -42,8 +42,8 @@ jobs:
     - name: Compile code
       run: meson compile -v -C build
 
-#    - name: Run tests
-#      run: meson test -v -C build
+    - name: Run tests
+      run: meson test -v -C build
 
 
 # meson test -v -C build --wrap='valgrind --leak-check=full --show-leak-kinds=all --error-exitcode=1'
