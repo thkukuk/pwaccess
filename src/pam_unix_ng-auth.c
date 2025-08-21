@@ -1,52 +1,25 @@
-/* SPDX-License-Identifier: BSD-2-Clause
-
-  Copyright (c) 2025, Thorsten Kukuk <kukuk@suse.com>
-
-  Redistribution and use in source and binary forms, with or without
-  modification, are permitted provided that the following conditions are met:
-
-  1. Redistributions of source code must retain the above copyright notice,
-     this list of conditions and the following disclaimer.
-
-  2. Redistributions in binary form must reproduce the above copyright
-     notice, this list of conditions and the following disclaimer in the
-     documentation and/or other materials provided with the distribution.
-
-  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-  ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
-  LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
-  CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
-  SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-  INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-  CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
-  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-  POSSIBILITY OF SUCH DAMAGE.
-*/
+// SPDX-License-Identifier: BSD-2-Clause
 
 #include <pwd.h>
+#include <time.h>
 #include <errno.h>
 #include <unistd.h>
+#include <security/pam_modutil.h>
 
 #include "basics.h"
 #include "pam_unix_ng.h"
 #include "pwaccess.h"
 
-int
-pam_sm_authenticate (pam_handle_t *pamh, int flags,
-		     int argc, const char **argv)
+
+static int
+authenticate(pam_handle_t *pamh, uint32_t ctrl)
 {
-  uint32_t ctrl = parse_args (pamh, flags, argc, argv);
   bool nullok;
   bool authenticated = false;
   _cleanup_free_ char *error = NULL;
   const char *user = NULL;
   const char *password = NULL;
   int  r;
-
-  if (ctrl & ARG_DEBUG)
-    pam_syslog (pamh, LOG_DEBUG, "authenticate called");
 
   nullok = ctrl & ARG_NULLOK;
 
@@ -55,9 +28,13 @@ pam_sm_authenticate (pam_handle_t *pamh, int flags,
   if (r != PAM_SUCCESS)
     {
       if (ctrl & ARG_DEBUG)
-        pam_syslog (pamh, LOG_DEBUG, "pam_get_user failed: return %d", r);
+        pam_syslog(pamh, LOG_DEBUG, "pam_get_user failed: return %d", r);
       return (r == PAM_CONV_AGAIN ? PAM_INCOMPLETE:r);
     }
+
+  /* can this happen? */
+  if (isempty(user))
+    return PAM_USER_UNKNOWN;
 
   if (ctrl & ARG_DEBUG)
     pam_syslog(pamh, LOG_DEBUG, "username [%s]", user);
@@ -69,7 +46,7 @@ pam_sm_authenticate (pam_handle_t *pamh, int flags,
   if (r != PAM_SUCCESS)
     {
       if (ctrl & ARG_DEBUG)
-        pam_syslog (pamh, LOG_DEBUG, "pam_get_authtok failed: return %d", r);
+        pam_syslog(pamh, LOG_DEBUG, "pam_get_authtok failed: return %d", r);
       if (r != PAM_CONV_AGAIN)
 	pam_syslog(pamh, LOG_CRIT, "Could not get password for [%s]", user);
 
@@ -79,30 +56,82 @@ pam_sm_authenticate (pam_handle_t *pamh, int flags,
   r = pwaccess_verify_password(user, password, nullok, &authenticated, &error);
   if (r < 0)
     {
-      if (PWACCESS_IS_NOT_RUNNING(r))
-	return PAM_SYSTEM_ERR; /* XXX try local fallback */
-
       if (r == -ENOENT)
 	return PAM_USER_UNKNOWN;
 
-      pam_syslog(pamh, LOG_ERR, "pwaccess verify failed: %s", error ? error : strerror(-r));
+      pam_syslog(pamh, LOG_ERR, "pwaccess verify failed: %s",
+		 error ? error : strerror(-r));
+
+      if (PWACCESS_IS_NOT_RUNNING(r))
+	return PAM_SYSTEM_ERR; /* XXX try local fallback */
+
       return PAM_SYSTEM_ERR;
     }
 
   if (authenticated)
     return PAM_SUCCESS;
+  else
+    {
+      const void *service = NULL;
+      const void *ruser = NULL;
+      const void *rhost = NULL;
+      const void *tty = NULL;
+      const char *login_name;
+
+      pam_get_item(pamh, PAM_SERVICE, &service);
+      pam_get_item(pamh, PAM_RUSER, &ruser);
+      pam_get_item(pamh, PAM_RHOST, &rhost);
+      pam_get_item(pamh, PAM_TTY, &tty);
+      login_name = pam_modutil_getlogin(pamh);
+
+      pam_syslog(pamh, LOG_NOTICE,
+		 "authentication failure; "
+		 "logname=%s uid=%d euid=%d "
+		 "tty=%s ruser=%s rhost=%s "
+		 "user=%s",
+		 strna(login_name), getuid(), geteuid(),
+		 strna(tty), strna(ruser), strna(rhost),
+		 user);
+    }
 
   return PAM_AUTH_ERR;
 }
 
 int
-pam_sm_setcred (pam_handle_t *pamh, int flags,
-		int argc, const char **argv)
+pam_sm_authenticate(pam_handle_t *pamh, int flags,
+		    int argc, const char **argv)
 {
-  uint32_t ctrl = parse_args (pamh, flags, argc, argv);
+  struct timespec start, stop;
+  uint32_t ctrl = parse_args(pamh, flags, argc, argv);
 
   if (ctrl & ARG_DEBUG)
-    pam_syslog (pamh, LOG_DEBUG, "setcred called");
+    {
+      clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &start);
+      pam_syslog(pamh, LOG_DEBUG, "authenticate called");
+    }
+
+  int retval = authenticate(pamh, ctrl);
+
+  if (ctrl & ARG_DEBUG)
+    {
+      clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &stop);
+
+      uint64_t delta_us = (stop.tv_sec - start.tv_sec) * 1000000 + (stop.tv_nsec - start.tv_nsec) / 1000;
+      pam_syslog(pamh, LOG_DEBUG, "authenticate finished (%i), executed in %lu milliseconds", retval, delta_us);
+    }
+
+  return retval;
+}
+
+
+int
+pam_sm_setcred(pam_handle_t *pamh, int flags,
+	       int argc, const char **argv)
+{
+  uint32_t ctrl = parse_args(pamh, flags, argc, argv);
+
+  if (ctrl & ARG_DEBUG)
+    pam_syslog(pamh, LOG_DEBUG, "setcred called");
 
   return PAM_SUCCESS;
 }

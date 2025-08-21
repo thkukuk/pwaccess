@@ -1,31 +1,7 @@
-/* SPDX-License-Identifier: BSD-2-Clause
-
-  Copyright (c) 2025, Thorsten Kukuk <kukuk@suse.com>
-
-  Redistribution and use in source and binary forms, with or without
-  modification, are permitted provided that the following conditions are met:
-
-  1. Redistributions of source code must retain the above copyright notice,
-     this list of conditions and the following disclaimer.
-
-  2. Redistributions in binary form must reproduce the above copyright
-     notice, this list of conditions and the following disclaimer in the
-     documentation and/or other materials provided with the distribution.
-
-  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-  ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
-  LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
-  CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
-  SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-  INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-  CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
-  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-  POSSIBILITY OF SUCH DAMAGE.
-*/
+// SPDX-License-Identifier: BSD-2-Clause
 
 #include <pwd.h>
+#include <time.h>
 #include <errno.h>
 #include <unistd.h>
 
@@ -33,20 +9,16 @@
 #include "pam_unix_ng.h"
 #include "pwaccess.h"
 
-int
-pam_sm_acct_mgmt(pam_handle_t *pamh, int flags, int argc, const char **argv)
+static int
+acct_mgmt(pam_handle_t *pamh, uint32_t ctrl)
 {
   pwa_expire_flag_t expire_state;
   const void *void_str;
   const char *user;
   _cleanup_free_ char *error = NULL;
   long daysleft = -1;
-  uint32_t ctrl = parse_args(pamh, flags, argc, argv);
   int r;
   int retval = PAM_SUCCESS;
-
-  if (ctrl & ARG_DEBUG)
-    pam_syslog(pamh, LOG_DEBUG, "acct_mgmt called");
 
   r = pam_get_item(pamh, PAM_USER, &void_str);
   if (r != PAM_SUCCESS || isempty(void_str))
@@ -59,13 +31,15 @@ pam_sm_acct_mgmt(pam_handle_t *pamh, int flags, int argc, const char **argv)
   r = pwaccess_check_expired(user, &daysleft, NULL /* pwchangeable */, &error);
   if (r < 0)
     {
-      if (PWACCESS_IS_NOT_RUNNING(r))
-	return PAM_SYSTEM_ERR; /* XXX try local fallback */
-
       if (r == -ENOENT)
 	return PAM_USER_UNKNOWN;
 
-      pam_syslog(pamh, LOG_ERR, "pwaccess expired failed: %s", error ? error : strerror(-r));
+      pam_syslog(pamh, LOG_ERR, "pwaccess expired failed: %s",
+		 error ? error : strerror(-r));
+
+      if (PWACCESS_IS_NOT_RUNNING(r))
+	return PAM_SYSTEM_ERR; /* XXX try local fallback */
+
       return PAM_SYSTEM_ERR;
     }
   expire_state = r;
@@ -118,18 +92,37 @@ pam_sm_acct_mgmt(pam_handle_t *pamh, int flags, int argc, const char **argv)
       pam_syslog(pamh, LOG_INFO,
 		 "password for user %s will expire in %ld days",
 		 user, daysleft);
-      if (daysleft == 1)
-	write_message(pamh, ctrl, PAM_TEXT_INFO,
-		      "Warning: your password will expire in %ld day.",
-		      daysleft);
-      else
-	write_message(pamh, ctrl, PAM_TEXT_INFO,
-		      "Warning: your password will expire in %ld days.",
-		      daysleft);
+      write_message(pamh, ctrl, PAM_TEXT_INFO,
+		    "Warning: your password will expire in %ld %s.",
+		    daysleft, (daysleft == 1)?"day":"days");
     }
 
+  return retval;
+}
+
+
+int
+pam_sm_acct_mgmt(pam_handle_t *pamh, int flags,
+		 int argc, const char **argv)
+{
+  struct timespec start, stop;
+  uint32_t ctrl = parse_args(pamh, flags, argc, argv);
+
   if (ctrl & ARG_DEBUG)
-    pam_syslog(pamh, LOG_DEBUG, "acct_mgmt done (%i)", retval);
+    {
+      clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &start);
+      pam_syslog(pamh, LOG_DEBUG, "acct_mgmt called");
+    }
+
+  int retval = acct_mgmt(pamh, ctrl);
+
+  if (ctrl & ARG_DEBUG)
+    {
+      clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &stop);
+
+      uint64_t delta_us = (stop.tv_sec - start.tv_sec) * 1000000 + (stop.tv_nsec - start.tv_nsec) / 1000;
+      pam_syslog(pamh, LOG_DEBUG, "acct_mgmt finished (%i), executed in %lu milliseconds", retval, delta_us);
+    }
 
   return retval;
 }
