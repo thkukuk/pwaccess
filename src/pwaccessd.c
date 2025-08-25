@@ -148,6 +148,8 @@ vl_method_get_environment(sd_varlink *link, sd_json_variant *parameters,
       return sd_varlink_error(link, SD_VARLINK_ERROR_PERMISSION_DENIED, parameters);
     }
 
+  sleep(10);
+
   r = sd_varlink_dispatch(link, parameters, NULL, NULL);
   if (r != 0)
     return r;
@@ -161,6 +163,8 @@ vl_method_get_environment(sd_varlink *link, sd_json_variant *parameters,
 	goto invalid;
     }
 #endif
+
+  sleep(10);
 
   return sd_varlink_replybo(link, SD_JSON_BUILD_PAIR_STRV("Environment", environ));
 
@@ -277,7 +281,7 @@ error_user_not_found(sd_varlink *link, int64_t uid, const char *name)
     {
       _cleanup_free_ char *error = NULL;
 
-      if (asprintf(&error, "getpwnam() failed: %m") < 0)
+      if (asprintf(&error, "user not found: %m") < 0)
 	error = NULL;
       log_msg(LOG_ERR, "%s", stroom(error));
       return sd_varlink_errorbo(link, "org.openSUSE.pwaccess.InternalError",
@@ -510,7 +514,7 @@ vl_method_verify_password(sd_varlink *link, sd_json_variant *parameters,
     }
 
   struct passwd *pw = NULL;
-  errno = 0; /* to find out if getpwnam succeed and there is no entry of if there was an error */
+  errno = 0; /* to find out if getpwnam succeed and there is no entry or if there was an error */
   pw = getpwnam(p.name);
 
   if (pw == NULL)
@@ -635,7 +639,7 @@ vl_method_expired_check(sd_varlink *link, sd_json_variant *parameters,
     }
 
   struct passwd *pw = NULL;
-  errno = 0; /* to find out if getpwnam succeed and there is no entry of if there was an error */
+  errno = 0; /* to find out if getpwnam succeed and there is no entry or if there was an error */
   pw = getpwnam(p.name);
 
   if (pw == NULL)
