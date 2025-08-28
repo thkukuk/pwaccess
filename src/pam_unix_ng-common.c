@@ -48,20 +48,24 @@ parse_args(pam_handle_t *pamh, int flags, int argc, const char **argv)
   return ctrl;
 }
 
-/* write message to user */
 int
-write_message (pam_handle_t *pamh, int ctrl, int type,
-	       const char *fmt,...)
+alloc_getxxnam_buffer(pam_handle_t *pamh, char **buf, long *size)
 {
-  va_list ap;
-  int retval;
+  long bufsize;
 
-  if (ctrl & ARG_QUIET)
-    return PAM_SUCCESS;
+  bufsize = sysconf(_SC_GETPW_R_SIZE_MAX);
+  if (bufsize == -1) /* Value was indeterminate */
+    bufsize = 1024;  /* sysconf() returns 1024 */
 
-  va_start (ap, fmt);
-  retval = pam_vprompt (pamh, type, NULL, fmt, ap);
-  va_end (ap);
+  *buf = malloc(bufsize);
+  if (*buf == NULL)
+    {
+      pam_syslog(pamh, LOG_CRIT, "Out of memory!");
+      pam_error(pamh, "Out of memory!");
+      return PAM_BUF_ERR;
+    }
 
-  return retval;
+  *size = bufsize;
+
+  return PAM_SUCCESS;
 }

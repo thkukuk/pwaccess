@@ -162,6 +162,7 @@ pwaccess_get_user_record(int64_t uid, const char *user, struct passwd **ret_pw, 
   if (r < 0)
     {
       fprintf(stderr, "Failed to build param list: %s\n", strerror(-r));
+      return r;
     }
   r = sd_varlink_call(link, "org.openSUSE.pwaccess.GetUserRecord", params, &result, &error_id);
   if (r < 0)
@@ -197,7 +198,7 @@ pwaccess_get_user_record(int64_t uid, const char *user, struct passwd **ret_pw, 
       /* Yes, we will overwrite a possible ENOMEM, but
 	 this shouldn't matter here */
       if (streq(error_id, "org.openSUSE.pwaccess.NoEntryFound"))
-	retval = -ENOENT;
+	retval = -ENODATA;
 
       return retval;
     }
@@ -303,6 +304,7 @@ pwaccess_verify_password(const char *user, const char *password, bool nullok, bo
   if (r < 0)
     {
       fprintf(stderr, "Failed to build param list: %s\n", strerror(-r));
+      return r;
     }
 
   sd_json_variant_sensitive(params); /* password is sensitive */
@@ -341,7 +343,7 @@ pwaccess_verify_password(const char *user, const char *password, bool nullok, bo
       /* Yes, we will overwrite a possible ENOMEM, but
 	 this shouldn't matter here */
       if (streq(error_id, "org.openSUSE.pwaccess.NoEntryFound"))
-	retval = -ENOENT;
+	retval = -ENODATA;
 
       return retval;
     }
@@ -399,6 +401,7 @@ pwaccess_check_expired(const char *user, long *daysleft, bool *pwchangeable, cha
   if (r < 0)
     {
       fprintf(stderr, "Failed to build param list: %s\n", strerror(-r));
+      return r;
     }
 
   r = sd_varlink_call(link, "org.openSUSE.pwaccess.ExpiredCheck", params, &result, &error_id);
@@ -436,7 +439,7 @@ pwaccess_check_expired(const char *user, long *daysleft, bool *pwchangeable, cha
       /* Yes, we will overwrite a possible ENOMEM, but
 	 this shouldn't matter here */
       if (streq(error_id, "org.openSUSE.pwaccess.NoEntryFound"))
-	retval = -ENOENT;
+	retval = -ENODATA;
 
       return retval;
     }

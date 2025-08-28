@@ -9,7 +9,7 @@
 #include "basics.h"
 #include "pam_unix_ng.h"
 #include "pwaccess.h"
-
+#include "verify.h"
 
 static int
 authenticate(pam_handle_t *pamh, uint32_t ctrl)
@@ -56,16 +56,89 @@ authenticate(pam_handle_t *pamh, uint32_t ctrl)
   r = pwaccess_verify_password(user, password, nullok, &authenticated, &error);
   if (r < 0)
     {
-      if (r == -ENOENT)
+      if (r == -ENODATA)
 	return PAM_USER_UNKNOWN;
 
       pam_syslog(pamh, LOG_ERR, "pwaccess verify failed: %s",
 		 error ? error : strerror(-r));
 
       if (PWACCESS_IS_NOT_RUNNING(r))
-	return PAM_SYSTEM_ERR; /* XXX try local fallback */
+	{
+	  struct passwd pwdbuf;
+	  struct passwd *pw = NULL;
+	  struct spwd spbuf;
+	  struct spwd *sp = NULL;
+	  _cleanup_free_ char *buf = NULL;
+	  long bufsize;
 
-      return PAM_SYSTEM_ERR;
+	  if (!(ctrl & ARG_QUIET))
+	    pam_syslog(pamh, LOG_NOTICE, "pwaccessd not running, using internal fallback code");
+
+	  r = alloc_getxxnam_buffer(pamh, &buf, &bufsize);
+	  if (r != PAM_SUCCESS)
+	    return r;
+
+	  r = getpwnam_r(user, &pwdbuf, buf, bufsize, &pw);
+	  if (pw == NULL)
+	    {
+	      if (r == 0)
+		{
+		  /* XXX error_user_not_found(link, -1, p.name); */
+		  pam_error(pamh, "User not found");
+		  return PAM_USER_UNKNOWN;
+		}
+
+	      pam_syslog(pamh, LOG_WARNING, "getpwnam_r(): %s", strerror(r));
+	      pam_error(pamh, "getpwnam_r(): %s", strerror(r));
+	      return PAM_SYSTEM_ERR;
+	    }
+
+	  /* XXX check that pw->pw_passwd is non NULL */
+	  _cleanup_free_ char *hash = strdup(pw->pw_passwd);
+	  if (hash == NULL)
+	    {
+	      pam_syslog(pamh, LOG_CRIT, "Out of memory!");
+	      pam_error(pamh, "Out of memory!");
+	      return PAM_BUF_ERR;
+	    }
+
+	  if (is_shadow(pw)) /* Get shadow entry */
+	    {
+	      /* reuse buffer,
+		 !!! pw is no longer valid !!! */
+
+	      r = getspnam_r(user, &spbuf, buf, bufsize, &sp);
+	      if (sp == NULL)
+		{
+		  if (r == 0)
+		    {
+		      /* XXX error_user_not_found(link, -1, p.name); */
+		      pam_error(pamh, "User not found");
+		      return PAM_USER_UNKNOWN;
+		    }
+
+		  pam_syslog(pamh, LOG_WARNING, "getspnam_r(): %s", strerror(r));
+		  pam_error(pamh, "getspnam_r(): %s", strerror(r));
+		  return PAM_SYSTEM_ERR;
+		}
+	      hash = mfree(hash);
+	      /* XXX check that sp->sp_pwdp is non NULL */
+	      hash = strdup(sp->sp_pwdp);
+	      if (hash == NULL)
+		{
+		  pam_syslog(pamh, LOG_CRIT, "Out of memory!");
+		  pam_error(pamh, "Out of memory!");
+		  return PAM_BUF_ERR;
+		}
+	    }
+	  r = verify_password(hash, password, nullok);
+	  if (r == VERIFY_OK)
+	    authenticated = true;
+	  else if (r != VERIFY_FAILED) /* XXX error message why it failed */
+	    return PAM_SYSTEM_ERR;
+	}
+      else
+	return PAM_SYSTEM_ERR;
     }
 
   if (authenticated)
@@ -106,7 +179,7 @@ pam_sm_authenticate(pam_handle_t *pamh, int flags,
 
   if (ctrl & ARG_DEBUG)
     {
-      clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &start);
+      clock_gettime(CLOCK_MONOTONIC, &start);
       pam_syslog(pamh, LOG_DEBUG, "authenticate called");
     }
 
@@ -114,7 +187,7 @@ pam_sm_authenticate(pam_handle_t *pamh, int flags,
 
   if (ctrl & ARG_DEBUG)
     {
-      clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &stop);
+      clock_gettime(CLOCK_MONOTONIC, &stop);
 
       uint64_t delta_us = (stop.tv_sec - start.tv_sec) * 1000000 + (stop.tv_nsec - start.tv_nsec) / 1000;
       pam_syslog(pamh, LOG_DEBUG, "authenticate finished (%i), executed in %lu milliseconds", retval, delta_us);
@@ -122,7 +195,6 @@ pam_sm_authenticate(pam_handle_t *pamh, int flags,
 
   return retval;
 }
-
 
 int
 pam_sm_setcred(pam_handle_t *pamh, int flags,

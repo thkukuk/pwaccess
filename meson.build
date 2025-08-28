@@ -20,6 +20,8 @@ conf.set_quoted('VERSION', meson.project_version())
 conf.set_quoted('PACKAGE', meson.project_name())
 conf.set_quoted('_VARLINK_PWACCESS_SOCKET_DIR', '/run/pwaccess')
 conf.set_quoted('_VARLINK_PWACCESS_SOCKET', '/run/pwaccess/socket')
+conf.set_quoted('_VARLINK_PWUPD_SOCKET_DIR', '/run/pwaccess')
+conf.set_quoted('_VARLINK_PWUPD_SOCKET', '/run/pwaccess/pwupd-socket')
 
 cc = meson.get_compiler('c')
 pkg = import('pkgconfig')
@@ -103,7 +105,7 @@ executable('pwaccessd',
 
 pam_unix_ng_c = files('src/pam_unix_ng-common.c', 'src/pam_unix_ng-session.c',
                       'src/pam_unix_ng-acct.c', 'src/pam_unix_ng-auth.c', 
-                      'src/pam_unix_ng-passwd.c')
+                      'src/pam_unix_ng-passwd.c', 'src/verify.c')
 pam_unix_ng_map = 'src/pam_unix_ng.map'
 pam_unix_ng_map_version = '-Wl,--version-script,@0@/@1@'.format(meson.current_source_dir(), pam_unix_ng_map)
 
@@ -115,7 +117,7 @@ pam_unix_ng = shared_library(
   link_args : ['-shared', pam_unix_ng_map_version],
   link_depends : pam_unix_ng_map,
   link_with : libpwaccess,
-  dependencies : [libpam],
+  dependencies : [libcrypt, libpam],
   install : true,
   install_dir : pamlibdir
 )

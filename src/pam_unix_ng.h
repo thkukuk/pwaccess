@@ -13,6 +13,5 @@
 
 extern uint32_t parse_args (pam_handle_t *pamh, int flags,
 			    int argc, const char **argv);
-extern int write_message (pam_handle_t *pamh, int ctrl, int type,
-			  const char *fmt,...);
-
+extern int alloc_getxxnam_buffer(pam_handle_t *pamh,
+				 char **buf, long *size);

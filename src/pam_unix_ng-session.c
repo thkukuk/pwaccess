@@ -12,6 +12,12 @@ int
 pam_sm_open_session(pam_handle_t *pamh, int flags,
 		    int argc, const char **argv)
 {
+  char buffer[64];
+  char *logname = buffer;
+  struct passwd pwdbuf;
+  struct passwd *pw = NULL;
+  _cleanup_free_ char *pwbuf = NULL;
+  long pwbufsize;
   const void *void_str;
   const char *user;
   uint32_t ctrl = parse_args(pamh, flags, argc, argv);
@@ -32,27 +38,26 @@ pam_sm_open_session(pam_handle_t *pamh, int flags,
     }
   user = void_str;
 
-  _cleanup_free_ char *error = NULL;
-  _cleanup_(struct_passwd_freep) struct passwd *pw = NULL;
-  bool complete = false;
-  char buffer[64];
-  char *logname = buffer;
-
+  /* XXX add real error handling */
   if (getlogin_r(buffer, sizeof(buffer)) != 0)
     logname = strerror(errno);
 
-  r = pwaccess_get_user_record(-1, user, &pw, NULL, &complete, &error);
-  if (r < 0)
+  r = alloc_getxxnam_buffer(pamh, &pwbuf, &pwbufsize);
+  if (r != PAM_SUCCESS)
+    return r;
+
+  r = getpwnam_r(user, &pwdbuf, pwbuf, pwbufsize, &pw);
+  if (pw == NULL)
     {
-      if (r == -ENOENT)
-	return PAM_USER_UNKNOWN;
+      if (r == 0)
+	{
+	  /* XXX error_user_not_found(link, -1, p.name); */
+	  pam_error(pamh, "User not found");
+	  return PAM_USER_UNKNOWN;
+	}
 
-      pam_syslog(pamh, LOG_ERR, "pwaccess user record failed: %s",
-		 error ? error : strerror(-r));
-
-      if (PWACCESS_IS_NOT_RUNNING(r))
-	return PAM_SYSTEM_ERR; /* XXX try local fallback */
-
+      pam_syslog(pamh, LOG_WARNING, "getpwnam_r(): %s", strerror(r));
+      pam_error(pamh, "getpwnam_r(): %s", strerror(r));
       return PAM_SYSTEM_ERR;
     }
 
