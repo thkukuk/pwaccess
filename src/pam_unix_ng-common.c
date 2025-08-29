@@ -69,3 +69,15 @@ alloc_getxxnam_buffer(pam_handle_t *pamh, char **buf, long *size)
 
   return PAM_SUCCESS;
 }
+
+void
+log_runtime_ms(pam_handle_t *pamh, const char *type, int retval,
+	       struct timespec start, struct timespec stop)
+{
+  const char *retstr = "";
+  uint64_t delta_ms = timespec_diff_ms(start, stop);
+
+  pam_syslog(pamh, LOG_DEBUG,
+	     "%s finished (%s), executed in %lu milliseconds",
+	     type, pam_strerror(pamh, retval), delta_ms);
+}

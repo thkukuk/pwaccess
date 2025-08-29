@@ -11,7 +11,16 @@
 #define ARG_QUIET	2 /* keep quiet about things */
 #define ARG_NULLOK	4 /* allow blank passwords */
 
-extern uint32_t parse_args (pam_handle_t *pamh, int flags,
-			    int argc, const char **argv);
+extern uint32_t parse_args(pam_handle_t *pamh, int flags,
+			   int argc, const char **argv);
 extern int alloc_getxxnam_buffer(pam_handle_t *pamh,
 				 char **buf, long *size);
+extern void log_runtime_ms(pam_handle_t *pamh, const char *type, int retval,
+			   struct timespec start, struct timespec stop);
+
+static inline uint64_t
+timespec_diff_ms(struct timespec start, struct timespec stop)
+{
+  return ((stop.tv_sec - start.tv_sec) * 1000000000 + (stop.tv_nsec - start.tv_nsec)) / 1000 / 1000;
+}
+

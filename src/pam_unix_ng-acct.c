@@ -142,8 +142,7 @@ pam_sm_acct_mgmt(pam_handle_t *pamh, int flags,
     {
       clock_gettime(CLOCK_MONOTONIC, &stop);
 
-      uint64_t delta_us = (stop.tv_sec - start.tv_sec) * 1000000 + (stop.tv_nsec - start.tv_nsec) / 1000;
-      pam_syslog(pamh, LOG_DEBUG, "acct_mgmt finished (%i), executed in %lu milliseconds", retval, delta_us);
+      log_runtime_ms(pamh, "acct_mgmt", retval, start, stop);
     }
 
   return retval;
