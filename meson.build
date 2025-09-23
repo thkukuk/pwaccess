@@ -94,7 +94,8 @@ pkg.generate(
   version : meson.project_version(),
 )
 
-pwaccessd_c = ['src/pwaccessd.c', 'src/varlink-org.openSUSE.pwaccess.c', 'src/mkdir_p.c', 'src/verify.c']
+pwaccessd_c = ['src/pwaccessd.c', 'src/varlink-org.openSUSE.pwaccess.c',
+               'src/mkdir_p.c', 'src/verify.c', 'src/varlink-service-common.c']
 
 executable('pwaccessd',
            pwaccessd_c,
