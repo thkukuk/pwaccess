@@ -74,7 +74,6 @@ void
 log_runtime_ms(pam_handle_t *pamh, const char *type, int retval,
 	       struct timespec start, struct timespec stop)
 {
-  const char *retstr = "";
   uint64_t delta_ms = timespec_diff_ms(start, stop);
 
   pam_syslog(pamh, LOG_DEBUG,
