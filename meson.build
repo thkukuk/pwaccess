@@ -41,7 +41,6 @@ possible_cc_flags = [
 		  '-Werror=return-type',
 		  '-Wbad-function-cast',
 		  '-Wcast-align',
-		  '-Wcast-qual',
                   '-Wformat-security',
 		  '-Winline',
 		  '-Wmissing-declarations',
@@ -66,8 +65,10 @@ if pamlibdir == ''
 endif
 
 libpam = dependency('pam', required: true)
+libpam_misc = dependency('pam_misc', required: true)
 libsystemd = dependency('libsystemd', version: '>= 257', required: true)
 libcrypt = dependency('libcrypt', 'libxcrypt', required: true)
+libeconf = dependency('libeconf', version : '>=0.7.5', required : true)
 
 libpwaccess_c = files('lib/varlink.c')
 libpwaccess_map = 'lib/libpwaccess.map'
@@ -96,12 +97,30 @@ pkg.generate(
 
 pwaccessd_c = ['src/pwaccessd.c', 'src/varlink-org.openSUSE.pwaccess.c',
                'src/mkdir_p.c', 'src/verify.c', 'src/varlink-service-common.c']
+pwupdd_c = ['src/pwupdd.c', 'src/varlink-org.openSUSE.pwupd.c',
+            'src/mkdir_p.c', 'src/varlink-service-common.c']
 
 executable('pwaccessd',
            pwaccessd_c,
            include_directories : inc,
            dependencies : [libsystemd, libcrypt],
            install_dir : libexecdir,
+           install : true)
+
+executable('pwupdd',
+           pwupdd_c,
+           include_directories : inc,
+           dependencies : [libpam, libsystemd],
+           install_dir : libexecdir,
+           install : true)
+
+executable('chsh', 'src/chsh.c', 'src/varlink-client-common.c',
+           include_directories : inc,
+           dependencies : [libsystemd, libpam, libpam_misc, libeconf],
+           install : true)
+executable('passwd', 'src/passwd.c', 'src/varlink-client-common.c',
+           include_directories : inc,
+           dependencies : [libsystemd, libpam, libpam_misc],
            install : true)
 
 pam_unix_ng_c = files('src/pam_unix_ng-common.c', 'src/pam_unix_ng-session.c',

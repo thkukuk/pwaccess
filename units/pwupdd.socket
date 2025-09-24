@@ -1,0 +1,15 @@
+[Unit]
+Description=Daemon to update passwd and shadow entries
+After=local-fs.target
+Before=sockets.target
+
+[Socket]
+ListenStream=/run/pwaccess/pwupd-socket
+FileDescriptorName=varlink
+SocketMode=0666
+DirectoryMode=0755
+Accept=yes
+MaxConnectionsPerSource=16
+
+[Install]
+WantedBy=sockets.target
