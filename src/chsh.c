@@ -258,7 +258,6 @@ main(int argc, char **argv)
 	    }
 	  goto loop;
 	}
-      return -r;
     }
 
   return 0;

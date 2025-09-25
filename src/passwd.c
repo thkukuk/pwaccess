@@ -189,8 +189,6 @@ main(int argc _unused_, char **argv _unused_)
 	    }
 	  goto loop;
 	}
-
-      return -r;
     }
 
   return 0;
