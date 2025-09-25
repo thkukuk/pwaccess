@@ -128,14 +128,12 @@ reply_callback(sd_varlink *link _unused_,
 	  }
 	if (!p.success)
 	  {
-	    if (p.error)
+	    if (p.error) /* XXX not password */
 	      fprintf(stderr, "Error while changing password: %s.\n", p.error);
 	    else
 	      fprintf(stderr, "Error while changing password.\n");
 	    return 1;
 	  }
-
-	printf("Password changed.\n");
     }
   else /* got pam_message */
     {
