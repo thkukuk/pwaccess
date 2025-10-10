@@ -89,6 +89,7 @@ error_user_not_found(sd_varlink *link, int64_t uid, const char *name)
 }
 
 struct parameters {
+  const char *pam_service;
   char *name;
   char *shell;
   char *response;
@@ -184,6 +185,7 @@ run_pam_auth(void *arg)
 {
   struct parameters *param = arg;
   _cleanup_(parameters_free) struct parameters p = {
+    .pam_service = param->pam_service,
     .name = param->name,
     .shell = param->shell,
     .link = param->link,
@@ -195,10 +197,11 @@ run_pam_auth(void *arg)
   pam_handle_t *pamh = NULL;
   intptr_t r;
 
-  r = pam_start("pwupd-chsh", p.name, &conv, &pamh);
+  r = pam_start(p.pam_service, p.name, &conv, &pamh);
   if (r != PAM_SUCCESS)
     {
-      log_msg(LOG_ERR, "pam_start(\"pwupd-chsh\", %s) failed: %s", p.name, pam_strerror(NULL, r));
+      log_msg(LOG_ERR, "pam_start(\"%s\", %s) failed: %s", p.pam_service,
+	      p.name, pam_strerror(NULL, r));
       return broadcast_and_return(r);
     }
   r = pam_authenticate(pamh, 0);
@@ -248,6 +251,7 @@ vl_method_chsh(sd_varlink *link, sd_json_variant *parameters,
 {
   /* don't free, can be still in use by the pam thread */
   struct parameters p = {
+    .pam_service = "pwupd-chsh",
     .name = NULL,
     .shell = NULL,
     .link = link,
@@ -364,6 +368,7 @@ run_pam_chauthtok(void *arg)
 {
   struct parameters *param = arg;
   _cleanup_(parameters_free) struct parameters p = {
+    .pam_service = param->pam_service,
     .name = param->name,
     .shell = param->shell,
     .link = param->link,
@@ -383,10 +388,11 @@ run_pam_chauthtok(void *arg)
     flags |= PAM_CHANGE_EXPIRED_AUTHTOK;
 #endif
 
-  r = pam_start("pwupd-passwd", p.name, &conv, &pamh);
+  r = pam_start(p.pam_service, p.name, &conv, &pamh);
   if (r != PAM_SUCCESS)
     {
-      log_msg(LOG_ERR, "pam_start(\"pwupd-passwd\", %s) failed: %s", p.name, pam_strerror(NULL, r));
+      log_msg(LOG_ERR, "pam_start(\"%s\", %s) failed: %s", p.pam_service,
+	      p.name, pam_strerror(NULL, r));
       return broadcast_and_return(r);
     }
   r = pam_chauthtok(pamh, flags);
@@ -413,6 +419,7 @@ vl_method_chauthtok(sd_varlink *link, sd_json_variant *parameters,
 {
   /* don't free, can be still in use by the pam thread */
   struct parameters p = {
+    .pam_service = "pwupd-passwd",
     .name = NULL,
     .shell = NULL,
     .link = link,
