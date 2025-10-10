@@ -14,6 +14,7 @@
 #include "basics.h"
 #include "pwaccess.h"
 #include "varlink-client-common.h"
+#include "get_value.h"
 
 #define USEC_INFINITY ((uint64_t) UINT64_MAX)
 
@@ -147,26 +148,32 @@ main(int argc, char **argv)
       return 1;
     }
   if (l_flag)
-    {
-      return get_shell_list();
-    }
+    return get_shell_list();
   else
     {
       _cleanup_(sd_varlink_unrefp) sd_varlink *link = NULL;
       _cleanup_(sd_json_variant_unrefp) sd_json_variant *params = NULL;
       const char *user = NULL;
+      const char *old_shell = NULL;
       int r;
+
+      struct passwd *pw = getpwuid(getuid());
+      if (pw == NULL)
+	{
+	  fprintf(stderr, "User (%u) not found!\n", getuid());
+	  return ENOENT;
+	}
+      old_shell = strdup(pw->pw_shell);
+      if (old_shell == NULL)
+	{
+	  fprintf(stderr, "Out of memory!\n");
+	  return ENOMEM;
+	}
 
       if (argc == 1)
 	user = argv[0];
       else
 	{
-	  struct passwd *pw = getpwuid(getuid());
-	  if (pw == NULL)
-	    {
-	      fprintf(stderr, "User (%u) not found!\n", getuid());
-	      return ENOENT;
-	    }
 	  user = strdupa(pw->pw_name);
 	  if (user == NULL)
 	    {
@@ -175,11 +182,24 @@ main(int argc, char **argv)
 	    }
 	}
 
-      /* XXX if new_shell == NULL, ask for shell */
+      if (new_shell == NULL)
+	{
+	  printf("Enter the new value, or press return for the default.\n");
+	  r = get_value(old_shell, "Login Shell", &new_shell);
+	  if (r < 0)
+	    return -r;
+	}
+
+      /* we don't need to change the shell if here is no change */
+      if (new_shell == NULL || streq(old_shell, new_shell))
+	{
+	  printf("Shell not changed.\n");
+	  return 0;
+	}
 
       r = connect_to_pwupdd(&link, _VARLINK_PWUPD_SOCKET, NULL /* XXX error */);
       if (r < 0)
-	return r;
+	return -r;
 
       r = sd_json_buildo(&params,
 			 SD_JSON_BUILD_PAIR("userName", SD_JSON_BUILD_STRING(user)),
@@ -220,7 +240,7 @@ main(int argc, char **argv)
 	  if (r < 0)
 	    {
 	      fprintf(stderr, "Failed to process varlink connection: %s\n", strerror(-r));
-	      return r;
+	      return -r;
 	    }
 	  if (r != 0)
 	    continue;

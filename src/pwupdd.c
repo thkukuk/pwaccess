@@ -21,6 +21,7 @@
 #include "basics.h"
 #include "mkdir_p.h"
 #include "varlink-service-common.h"
+#include "files.h"
 
 #include "varlink-org.openSUSE.pwupd.h"
 
@@ -236,9 +237,23 @@ run_pam_auth(void *arg)
       return broadcast_and_return(r);
     }
 
-  /* XXX check if shell is valid and really change it */
-  log_msg(LOG_INFO, "chsh: changed shell for '%s' to '%s'", p.name, p.shell);
+  if (!isempty(p.shell))
+    {
+      struct passwd pw;
 
+      memset(&pw, 0, sizeof(pw));
+      pw.pw_name = p.name;
+      pw.pw_shell = p.shell;
+      r = update_passwd(&pw, NULL);
+      if (r < 0)
+	{
+	  log_msg(LOG_ERR, "update_passwd() failed: %s", strerror(-r));
+	  return broadcast_and_return(r);
+	}
+
+      /* XXX check if shell is valid and really change it */
+      log_msg(LOG_INFO, "chsh: changed shell for '%s' to '%s'", p.name, p.shell);
+    }
   return broadcast_and_return(r);
 }
 
@@ -353,8 +368,17 @@ vl_method_chsh(sd_varlink *link, sd_json_variant *parameters,
       _cleanup_free_ char *error = NULL;
 
       int64_t t = (int64_t)thread_res;
-      if (asprintf(&error, "PAM authentication failed: %s", pam_strerror(NULL, t)) < 0)
-	error = NULL;
+      if (t > 0)
+	{
+	  if (asprintf(&error, "PAM authentication failed: %s", pam_strerror(NULL, t)) < 0)
+	    error = NULL;
+	}
+      else
+	{
+	  if (asprintf(&error, "Updating passwd/shadow failed: %s", strerror(-t)) < 0)
+	    error = NULL;
+	}
+
       return sd_varlink_errorbo(link, "org.openSUSE.pwupd.InternalError",
 				SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
 				SD_JSON_BUILD_PAIR_STRING("ErrorMsg", stroom(error)));

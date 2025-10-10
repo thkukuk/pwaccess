@@ -69,6 +69,10 @@ libpam_misc = dependency('pam_misc', required: true)
 libsystemd = dependency('libsystemd', version: '>= 257', required: true)
 libcrypt = dependency('libcrypt', 'libxcrypt', required: true)
 libeconf = dependency('libeconf', version : '>=0.7.5', required : true)
+libselinux = dependency('libselinux', required: get_option('selinux'))
+if libselinux.found()
+  conf.set('WITH_SELINUX', 1)
+endif
 
 libpwaccess_c = files('lib/varlink.c')
 libpwaccess_map = 'lib/libpwaccess.map'
@@ -98,7 +102,8 @@ pkg.generate(
 pwaccessd_c = ['src/pwaccessd.c', 'src/varlink-org.openSUSE.pwaccess.c',
                'src/mkdir_p.c', 'src/verify.c', 'src/varlink-service-common.c']
 pwupdd_c = ['src/pwupdd.c', 'src/varlink-org.openSUSE.pwupd.c',
-            'src/mkdir_p.c', 'src/varlink-service-common.c']
+            'src/mkdir_p.c', 'src/varlink-service-common.c', 'src/files.c',
+            'src/string-util-fundamental.c']
 
 executable('pwaccessd',
            pwaccessd_c,
@@ -110,11 +115,12 @@ executable('pwaccessd',
 executable('pwupdd',
            pwupdd_c,
            include_directories : inc,
-           dependencies : [libpam, libsystemd],
+           dependencies : [libpam, libsystemd, libselinux],
            install_dir : libexecdir,
            install : true)
 
-executable('chsh', 'src/chsh.c', 'src/varlink-client-common.c',
+executable('chsh', 'src/chsh.c', 'src/varlink-client-common.c', 
+           'src/get_value.c',
            include_directories : inc,
            dependencies : [libsystemd, libpam, libpam_misc, libeconf],
            install : true)
@@ -142,6 +148,10 @@ pam_unix_ng = shared_library(
   install_dir : pamlibdir
 )
 
+# create config.h
+subdir('include')
+
+# systemd units
 subdir('units')
 
 # Unit tests
@@ -151,7 +161,3 @@ subdir('tests')
 #subdir('man')
 
 subdir('example')
-
-config_h = configure_file(
-  output : 'config.h',
-  configuration : conf)
