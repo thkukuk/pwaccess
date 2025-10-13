@@ -48,6 +48,9 @@ is_shadow(const struct passwd *pw)
 {
   assert(pw);
 
+  if (isempty(pw->pw_passwd))
+    return false;
+
   if (streq(pw->pw_passwd, "x") ||
       (pw->pw_passwd &&
        strlen(pw->pw_passwd) > 2 &&

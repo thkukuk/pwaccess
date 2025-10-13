@@ -24,7 +24,7 @@ authenticate(pam_handle_t *pamh, uint32_t ctrl, uint32_t fail_delay)
   nullok = ctrl & ARG_NULLOK;
 
   /* Get login name */
-  r = pam_get_user(pamh, &user, NULL /* prompt=XXX */);
+  r = pam_get_user(pamh, &user, NULL /* prompt=xxx */);
   if (r != PAM_SUCCESS)
     {
       if (ctrl & ARG_DEBUG)
@@ -82,6 +82,7 @@ authenticate(pam_handle_t *pamh, uint32_t ctrl, uint32_t fail_delay)
 	  struct spwd spbuf;
 	  struct spwd *sp = NULL;
 	  _cleanup_free_ char *buf = NULL;
+	  _cleanup_free_ char *hash = NULL;
 	  long bufsize;
 
 	  if (!(ctrl & ARG_QUIET))
@@ -96,8 +97,10 @@ authenticate(pam_handle_t *pamh, uint32_t ctrl, uint32_t fail_delay)
 	    {
 	      if (r == 0)
 		{
-		  /* XXX error_user_not_found(link, -1, p.name); */
-		  pam_error(pamh, "User not found");
+		  if (valid_name(user))
+		    pam_error(pamh, "User '%s' not found", user);
+		  else
+		    pam_error(pamh, "User not found (contains invalid characters)");
 		  return PAM_USER_UNKNOWN;
 		}
 
@@ -106,15 +109,13 @@ authenticate(pam_handle_t *pamh, uint32_t ctrl, uint32_t fail_delay)
 	      return PAM_SYSTEM_ERR;
 	    }
 
-	  /* XXX check that pw->pw_passwd is non NULL */
-	  _cleanup_free_ char *hash = strdup(pw->pw_passwd);
+	  hash = strdup(strempty(pw->pw_passwd));
 	  if (hash == NULL)
 	    {
 	      pam_syslog(pamh, LOG_CRIT, "Out of memory!");
 	      pam_error(pamh, "Out of memory!");
 	      return PAM_BUF_ERR;
 	    }
-
 	  if (is_shadow(pw)) /* Get shadow entry */
 	    {
 	      /* reuse buffer,
@@ -136,8 +137,7 @@ authenticate(pam_handle_t *pamh, uint32_t ctrl, uint32_t fail_delay)
 		  return PAM_SYSTEM_ERR;
 		}
 	      hash = mfree(hash);
-	      /* XXX check that sp->sp_pwdp is non NULL */
-	      hash = strdup(sp->sp_pwdp);
+	      hash = strdup(strempty(sp->sp_pwdp));
 	      if (hash == NULL)
 		{
 		  pam_syslog(pamh, LOG_CRIT, "Out of memory!");
