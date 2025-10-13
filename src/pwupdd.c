@@ -2,6 +2,7 @@
 
 #include "config.h"
 
+#include <ctype.h>
 #include <assert.h>
 #include <limits.h>
 #include <getopt.h>
@@ -16,6 +17,7 @@
 #include <systemd/sd-varlink.h>
 #include <systemd/sd-journal.h>
 #include <security/pam_appl.h>
+#include <libeconf.h>
 
 #include "pwaccess.h"
 #include "basics.h"
@@ -89,6 +91,20 @@ error_user_not_found(sd_varlink *link, int64_t uid, const char *name)
     }
 }
 
+static int
+return_internal_error(sd_varlink *link, const char *function, int r)
+{
+  _cleanup_free_ char *error = NULL;
+
+  if (asprintf(&error, "%s failed: %s", function, strerror(r)) < 0)
+    error = NULL;
+  log_msg(LOG_ERR, "%s", stroom(error));
+  return sd_varlink_errorbo(link, "org.openSUSE.pwupd.InternalError",
+			    SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
+			    SD_JSON_BUILD_PAIR_STRING("ErrorMsg", stroom(error)));
+}
+
+
 struct parameters {
   const char *pam_service;
   char *name;
@@ -147,7 +163,12 @@ varlink_conv(int num_msg, const struct pam_message **msgm,
 	  /* waiting for answer */
 	  pthread_mutex_lock(&mut);
 	  *response = calloc(num_msg, sizeof(struct pam_response));
-	  /* XXX NULL pointer check/calloc failed */
+	  if (*response == NULL)
+	    {
+	      log_msg(LOG_ERR, "Out of memory!");
+	      pthread_mutex_unlock(&mut);
+	      return PAM_BUF_ERR;
+	    }
 	  log_msg(LOG_DEBUG, "varlink_conv: calling pthread_cond_wait");
 	  pthread_cond_wait(&cond, &mut);
 	  response[0]->resp_retcode = 0;
@@ -160,11 +181,16 @@ varlink_conv(int num_msg, const struct pam_message **msgm,
 	  r = sd_varlink_notifybo(p->link,
 				  SD_JSON_BUILD_PAIR_INTEGER("msg_style", msgm[count]->msg_style),
 				  SD_JSON_BUILD_PAIR("message", SD_JSON_BUILD_STRING(msgm[count]->msg)));
-	  /* XXX check r */
 	  sd_varlink_flush(p->link);
+	  if (r < 0)
+	    {
+	      log_msg(LOG_ERR, "Failed to send notify: %s\n", strerror(-r));
+	      return PAM_SYSTEM_ERR;
+	    }
           break;
         default:
-	  /* XXX error */
+	  log_msg(LOG_ERR, "Unknown msg style: %i\n", msgm[count]->msg_style);
+	  return PAM_SYSTEM_ERR;
         }
     }
 
@@ -251,10 +277,115 @@ run_pam_auth(void *arg)
 	  return broadcast_and_return(r);
 	}
 
-      /* XXX check if shell is valid and really change it */
       log_msg(LOG_INFO, "chsh: changed shell for '%s' to '%s'", p.name, p.shell);
     }
   return broadcast_and_return(r);
+}
+
+/* XXX move all code access /etc/shells into one file */
+static int
+is_known_shell(const char *shell)
+{
+  _cleanup_(econf_freeFilep) econf_file *key_file = NULL;
+  _cleanup_(econf_freeArrayp) char **keys = NULL;
+  size_t size = 0;
+  econf_err error;
+
+  error = econf_readConfig(&key_file,
+                           NULL /* project */,
+                           "/usr/etc" /* usr_conf_dir */,
+                           "shells" /* config_name */,
+                           NULL /* config_suffix */,
+                           "" /* delim, key only */,
+                           "#" /* comment */);
+  if (error != ECONF_SUCCESS)
+    {
+      log_msg(LOG_ERR, "Cannot parse shell files: %s",
+              econf_errString(error));
+      return 1;
+    }
+
+  error = econf_getKeys(key_file, NULL, &size, &keys);
+  if (error)
+    {
+      log_msg(LOG_ERR, "Cannot evaluate entries in shell files: %s",
+              econf_errString(error));
+      return 1;
+    }
+
+  for (size_t i = 0; i < size; i++)
+    if (streq(keys[i], shell))
+	return 0;
+
+  return 1;
+}
+
+/* If the shell is completely invalid, print an error and
+   return 1. If root changes the shell, print only a warning.
+   Only exception: Invalid characters are always not allowed.  */
+static int
+check_shell(const char *shell, uid_t uid, char **msg)
+{
+  if (*shell != '/')
+    {
+      if (msg)
+	*msg = strdup("Shell must be a full path name.");
+      if (uid)
+        return 1;
+    }
+  if (access (shell, F_OK) < 0)
+    {
+      if (msg)
+	{
+	  if (asprintf(msg, "'%s' does not exist.", shell) < 0)
+	    *msg = NULL;
+	}
+      if (uid)
+        return 1;
+    }
+  if (access (shell, X_OK) < 0)
+    {
+      if (msg)
+	{
+	  if (asprintf(msg, "'%s' is not executable.", shell) < 0)
+	    *msg = NULL;
+	}
+      if (uid)
+        return 1;
+    }
+
+  /* keep /etc/passwd clean. */
+  for (size_t i = 0; i < strlen(shell); i++)
+    {
+      char c = shell[i];
+      if (c == ',' || c == ':' || c == '=' || c == '"' || c == '\n')
+        {
+	  if (msg)
+	    {
+	      if (asprintf(msg, "'%c' is not allowed.", c) < 0)
+		*msg = NULL;
+	    }
+          return 1;
+        }
+      if (iscntrl (c))
+        {
+          if (msg)
+	    *msg = strdup("Control characters are not allowed.");
+          return 1;
+        }
+    }
+
+  if (!is_known_shell(shell))
+    {
+      if (msg)
+	{
+	  if (asprintf(msg, "%s: '%s' is not listed as valid login shell.", uid?"Error":"Warning", shell) < 0)
+	    *msg = NULL;
+	}
+      if (uid)
+	return 1;
+    }
+  return 0;
 }
 
 static pthread_t pam_thread;
@@ -325,20 +456,23 @@ vl_method_chsh(sd_varlink *link, sd_json_variant *parameters,
 				SD_JSON_BUILD_PAIR_STRING("ErrorMsg", stroom(error)));
     }
 
-  /* XXX verify that shell is allowed */
+  _cleanup_free_ char *msg = NULL;
+  r = check_shell(p.shell, peer_uid, &msg);
+  if (r != 0)
+    {
+      log_msg(LOG_ERR, "chsh (check_shell): %s", stroom(msg));
+      return sd_varlink_errorbo(link, "org.openSUSE.pwupd.InvalidShell",
+				SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
+				SD_JSON_BUILD_PAIR_STRING("ErrorMsg", stroom(msg)));
+    }
+  if (msg)
+    {
+      /* XXX send msg as informal text */
+    }
 
   r = pthread_create(&pam_thread, NULL, &run_pam_auth, &p);
   if (r != 0)
-    { /* XXX move to function */
-      _cleanup_free_ char *error = NULL;
-
-      if (asprintf(&error, "pthread_create failed: %s", strerror(r)) < 0)
-        error = NULL;
-      log_msg(LOG_ERR, "%s", stroom(error));
-      return sd_varlink_errorbo(link, "org.openSUSE.pwupd.InternalError",
-				SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
-				SD_JSON_BUILD_PAIR_STRING("ErrorMsg", stroom(error)));
-    }
+    return return_internal_error(link, "pthread_create", r);
 
   pthread_mutex_lock(&mut);
   log_msg(LOG_DEBUG, "chsh: calling pthread_cond_wait");
@@ -353,16 +487,8 @@ vl_method_chsh(sd_varlink *link, sd_json_variant *parameters,
   intptr_t *thread_res = NULL;
   r = pthread_join(pam_thread, (void **)&thread_res);
   if (r != 0)
-    { /* XXX move to function */
-      _cleanup_free_ char *error = NULL;
+    return return_internal_error(link, "pthread_join", r);
 
-      if (asprintf(&error, "pthread_join failed: %s", strerror(r)) < 0)
-        error = NULL;
-      log_msg(LOG_ERR, "%s", stroom(error));
-      return sd_varlink_errorbo(link, "org.openSUSE.pwupd.InternalError",
-				SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
-				SD_JSON_BUILD_PAIR_STRING("ErrorMsg", stroom(error)));
-    }
   if (thread_res != PAM_SUCCESS)
     {
       _cleanup_free_ char *error = NULL;
@@ -506,30 +632,12 @@ vl_method_chauthtok(sd_varlink *link, sd_json_variant *parameters,
     {
       log_msg(LOG_DEBUG, "Callilng setuid(%u)", peer_uid);
       if (setuid(peer_uid) != 0)
-	{ /* XXX move to function */
-	  _cleanup_free_ char *error = NULL;
-
-	  if (asprintf(&error, "setuid(%u) failed: %m", peer_uid) < 0)
-	    error = NULL;
-	  log_msg(LOG_ERR, "%s", stroom(error));
-	  return sd_varlink_errorbo(link, "org.openSUSE.pwupd.InternalError",
-				    SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
-				    SD_JSON_BUILD_PAIR_STRING("ErrorMsg", stroom(error)));
-	}
+	return return_internal_error(link, "setuid", errno);
     }
 
   r = pthread_create(&pam_thread, NULL, &run_pam_chauthtok, &p);
   if (r != 0)
-    { /* XXX move to function */
-      _cleanup_free_ char *error = NULL;
-
-      if (asprintf(&error, "pthread_create failed: %s", strerror(r)) < 0)
-        error = NULL;
-      log_msg(LOG_ERR, "%s", stroom(error));
-      return sd_varlink_errorbo(link, "org.openSUSE.pwupd.InternalError",
-				SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
-				SD_JSON_BUILD_PAIR_STRING("ErrorMsg", stroom(error)));
-    }
+    return return_internal_error(link, "pthread_create", errno);
 
   pthread_mutex_lock(&mut);
   log_msg(LOG_DEBUG, "chauthtok: calling pthread_cond_wait");
@@ -544,16 +652,8 @@ vl_method_chauthtok(sd_varlink *link, sd_json_variant *parameters,
   intptr_t *thread_res = NULL;
   r = pthread_join(pam_thread, (void **)&thread_res);
   if (r != 0)
-    { /* XXX move to function */
-      _cleanup_free_ char *error = NULL;
+    return return_internal_error(link, "pthread_joind", errno);
 
-      if (asprintf(&error, "pthread_join failed: %s", strerror(r)) < 0)
-        error = NULL;
-      log_msg(LOG_ERR, "%s", stroom(error));
-      return sd_varlink_errorbo(link, "org.openSUSE.pwupd.InternalError",
-				SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
-				SD_JSON_BUILD_PAIR_STRING("ErrorMsg", stroom(error)));
-    }
   if (thread_res != PAM_SUCCESS)
     {
       _cleanup_free_ char *error = NULL;
@@ -594,16 +694,7 @@ vl_method_conv(sd_varlink *link, sd_json_variant *parameters,
   else
     r = ENOENT;
   if (r != 0)
-    { /* XXX move to function */
-      _cleanup_free_ char *error = NULL;
-
-      if (asprintf(&error, "No PAM thread running: %s", strerror(r)) < 0)
-        error = NULL;
-      log_msg(LOG_ERR, "%s", stroom(error));
-      return sd_varlink_errorbo(link, "org.openSUSE.pwupd.InternalError",
-				SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
-				SD_JSON_BUILD_PAIR_STRING("ErrorMsg", stroom(error)));
-    }
+    return return_internal_error(link, "Finding PAM thread", r);
 
   r = sd_varlink_dispatch(p.link, parameters, dispatch_table, &p);
   if (r < 0)
@@ -636,16 +727,8 @@ vl_method_conv(sd_varlink *link, sd_json_variant *parameters,
   intptr_t *thread_res = NULL;
   r = pthread_join(pam_thread, (void **)&thread_res);
   if (r != 0)
-    { /* XXX move to function */
-      _cleanup_free_ char *error = NULL;
+    return return_internal_error(link, "pthread_join", r);
 
-      if (asprintf(&error, "pthread_join failed: %s", strerror(r)) < 0)
-        error = NULL;
-      log_msg(LOG_ERR, "%s", stroom(error));
-      return sd_varlink_errorbo(link, "org.openSUSE.pwupd.InternalError",
-				SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
-				SD_JSON_BUILD_PAIR_STRING("ErrorMsg", stroom(error)));
-    }
   if (thread_res != PAM_SUCCESS)
     {
       _cleanup_free_ char *error = NULL;

@@ -115,7 +115,7 @@ executable('pwaccessd',
 executable('pwupdd',
            pwupdd_c,
            include_directories : inc,
-           dependencies : [libpam, libsystemd, libselinux],
+           dependencies : [libpam, libsystemd, libeconf, libselinux],
            install_dir : libexecdir,
            install : true)
 
