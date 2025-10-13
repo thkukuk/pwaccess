@@ -8,7 +8,7 @@
 
   <refnamediv>
     <refname>pam_unix_ng</refname>
-    <refpurpose>PAM module for traditional password authenticaion</refpurpose>
+    <refpurpose>PAM module for traditional password authentication</refpurpose>
   </refnamediv>
 
   <refsynopsisdiv>
