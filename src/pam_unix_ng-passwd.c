@@ -12,7 +12,7 @@ int
 pam_sm_chauthtok(pam_handle_t *pamh, int flags,
 		 int argc, const char **argv)
 {
-  uint32_t ctrl = parse_args(pamh, flags, argc, argv);
+  uint32_t ctrl = parse_args(pamh, flags, argc, argv, NULL);
 
   if (flags & PAM_CHANGE_EXPIRED_AUTHTOK)
     {

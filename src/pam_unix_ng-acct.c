@@ -128,7 +128,7 @@ pam_sm_acct_mgmt(pam_handle_t *pamh, int flags,
 		 int argc, const char **argv)
 {
   struct timespec start, stop;
-  uint32_t ctrl = parse_args(pamh, flags, argc, argv);
+  uint32_t ctrl = parse_args(pamh, flags, argc, argv, NULL);
 
   if (ctrl & ARG_DEBUG)
     {

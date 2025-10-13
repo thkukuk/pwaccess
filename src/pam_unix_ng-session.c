@@ -21,7 +21,7 @@ pam_sm_open_session(pam_handle_t *pamh, int flags,
   long pwbufsize;
   const void *void_str;
   const char *user;
-  uint32_t ctrl = parse_args(pamh, flags, argc, argv);
+  uint32_t ctrl = parse_args(pamh, flags, argc, argv, NULL);
   int r;
 
   if (ctrl & ARG_DEBUG)
@@ -75,7 +75,7 @@ pam_sm_close_session(pam_handle_t *pamh, int flags,
 {
   const void *void_str;
   const char *user;
-  uint32_t ctrl = parse_args(pamh, flags, argc, argv);
+  uint32_t ctrl = parse_args(pamh, flags, argc, argv, NULL);
   int r;
 
   if (ctrl & ARG_DEBUG)

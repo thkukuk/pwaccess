@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-2-Clause
 
 #include <assert.h>
+#include <limits.h>
 
 #include "basics.h"
 #include "pam_unix_ng.h"
@@ -22,8 +23,10 @@ skip_prefix(const char *str, const char *prefix)
 }
 
 uint32_t
-parse_args(pam_handle_t *pamh, int flags, int argc, const char **argv)
+parse_args(pam_handle_t *pamh, int flags, int argc, const char **argv,
+	   uint32_t *fail_delay)
 {
+  const char *cp;
   uint32_t ctrl = 0;
 
   /* does the application require quiet? */
@@ -39,6 +42,21 @@ parse_args(pam_handle_t *pamh, int flags, int argc, const char **argv)
 	ctrl |= ARG_QUIET;
       else if (streq(*argv, "nullok"))
         ctrl |= ARG_NULLOK;
+      else if ((cp = skip_prefix(*argv, "fail_delay=")) != NULL)
+	{
+	  char *ep;
+	  long l;
+
+	  if (fail_delay != NULL)
+	    continue;
+
+	  l = strtol(cp, &ep, 10);
+	  if (l == LONG_MAX || l < 0 || l > UINT32_MAX ||
+	      cp == ep || *ep != '\0')
+	    pam_syslog(pamh, LOG_ERR, "Cannot parse 'fail_delay=%s'", cp);
+	  else
+	    *fail_delay = l;
+	}
       /* this options are handled by pam_get_authtok() */
       else if (!streq(*argv, "try_first_pass") && !streq(*argv, "use_first_pass") &&
 	       !streq(*argv, "use_authtok") && skip_prefix(*argv, "authtok_type=") == NULL)

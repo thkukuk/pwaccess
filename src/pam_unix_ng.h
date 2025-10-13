@@ -12,7 +12,8 @@
 #define ARG_NULLOK	4 /* allow blank passwords */
 
 extern uint32_t parse_args(pam_handle_t *pamh, int flags,
-			   int argc, const char **argv);
+			   int argc, const char **argv,
+			   uint32_t *fail_delay);
 extern int alloc_getxxnam_buffer(pam_handle_t *pamh,
 				 char **buf, long *size);
 extern void log_runtime_ms(pam_handle_t *pamh, const char *type, int retval,

@@ -12,7 +12,7 @@
 #include "verify.h"
 
 static int
-authenticate(pam_handle_t *pamh, uint32_t ctrl)
+authenticate(pam_handle_t *pamh, uint32_t ctrl, uint32_t fail_delay)
 {
   bool nullok;
   bool authenticated = false;
@@ -51,6 +51,19 @@ authenticate(pam_handle_t *pamh, uint32_t ctrl)
 	pam_syslog(pamh, LOG_CRIT, "Could not get password for [%s]", user);
 
       return (r == PAM_CONV_AGAIN ? PAM_INCOMPLETE:r);
+    }
+
+  if (fail_delay != 0)
+    {
+      r = pam_fail_delay(pamh, fail_delay*1000);   /* convert milliseconds to microseconds */
+      if (r != PAM_SUCCESS)
+	{
+	  if (ctrl & ARG_DEBUG)
+	    pam_syslog(pamh, LOG_DEBUG, "pam_fail_delay failed: return %d", r);
+	  pam_syslog(pamh, LOG_CRIT, "Could not set fail delay");
+
+	  return r;
+	}
     }
 
   r = pwaccess_verify_password(user, password, nullok, &authenticated, &error);
@@ -175,7 +188,8 @@ pam_sm_authenticate(pam_handle_t *pamh, int flags,
 		    int argc, const char **argv)
 {
   struct timespec start, stop;
-  uint32_t ctrl = parse_args(pamh, flags, argc, argv);
+  uint32_t fail_delay = 2000;
+  uint32_t ctrl = parse_args(pamh, flags, argc, argv, &fail_delay);
 
   if (ctrl & ARG_DEBUG)
     {
@@ -183,7 +197,7 @@ pam_sm_authenticate(pam_handle_t *pamh, int flags,
       pam_syslog(pamh, LOG_DEBUG, "authenticate called");
     }
 
-  int retval = authenticate(pamh, ctrl);
+  int retval = authenticate(pamh, ctrl, fail_delay);
 
   if (ctrl & ARG_DEBUG)
     {
@@ -199,7 +213,7 @@ int
 pam_sm_setcred(pam_handle_t *pamh, int flags,
 	       int argc, const char **argv)
 {
-  uint32_t ctrl = parse_args(pamh, flags, argc, argv);
+  uint32_t ctrl = parse_args(pamh, flags, argc, argv, NULL);
 
   if (ctrl & ARG_DEBUG)
     pam_syslog(pamh, LOG_DEBUG, "setcred called");
