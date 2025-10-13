@@ -12,8 +12,8 @@ jobs:
 
     - name: Install devel packages
       run: |
-        zypper ref
-        zypper --non-interactive in --no-recommends meson gcc libeconf-devel systemd-devel pam-devel libselinux-devel valgrind
+        zypper ref -f
+        zypper --non-interactive in --no-recommends meson gcc libeconf-devel systemd-devel pam-devel libselinux-devel valgrind docbook5-xsl-stylesheets libxslt-tools
 
     - name: Setup meson
       run: meson setup build --auto-features=enabled
@@ -34,7 +34,7 @@ jobs:
     - name: Install devel packages
       run: |
         zypper ref
-        zypper --non-interactive in --no-recommends meson gcc libeconf-devel systemd-devel pam-devel libselinux-devel valgrind
+        zypper --non-interactive in --no-recommends meson gcc libeconf-devel systemd-devel pam-devel libselinux-devel valgrind docbook5-xsl-stylesheets libxslt-tools
 
     - name: Setup meson
       run: meson setup build --auto-features=enabled -Db_sanitize=address,undefined
