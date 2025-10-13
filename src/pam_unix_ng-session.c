@@ -3,6 +3,7 @@
 #include <pwd.h>
 #include <errno.h>
 #include <unistd.h>
+#include <limits.h>
 
 #include "basics.h"
 #include "pam_unix_ng.h"
@@ -12,8 +13,8 @@ int
 pam_sm_open_session(pam_handle_t *pamh, int flags,
 		    int argc, const char **argv)
 {
-  char buffer[64];
-  char *logname = buffer;
+  char lognamebuf[LOGIN_NAME_MAX+1];
+  const char *logname = lognamebuf;
   struct passwd pwdbuf;
   struct passwd *pw = NULL;
   _cleanup_free_ char *pwbuf = NULL;
@@ -38,8 +39,8 @@ pam_sm_open_session(pam_handle_t *pamh, int flags,
     }
   user = void_str;
 
-  /* XXX add real error handling */
-  if (getlogin_r(buffer, sizeof(buffer)) != 0)
+  /* lognamebuf is bigger than max allowed username length */
+  if (getlogin_r(lognamebuf, sizeof(lognamebuf)) != 0)
     logname = strerror(errno);
 
   r = alloc_getxxnam_buffer(pamh, &pwbuf, &pwbufsize);
