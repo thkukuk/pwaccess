@@ -125,11 +125,12 @@ authenticate(pam_handle_t *pamh, uint32_t ctrl, uint32_t fail_delay)
 		{
 		  if (r == 0)
 		    {
-		      /* XXX error_user_not_found(link, -1, p.name); */
-		      pam_error(pamh, "User not found");
+		      if (valid_name(user))
+			pam_error(pamh, "User '%s' not found", user);
+		      else
+			pam_error(pamh, "User not found (contains invalid characters)");
 		      return PAM_USER_UNKNOWN;
 		    }
-
 		  pam_syslog(pamh, LOG_WARNING, "getspnam_r(): %s", strerror(r));
 		  pam_error(pamh, "getspnam_r(): %s", strerror(r));
 		  return PAM_SYSTEM_ERR;

@@ -10,6 +10,7 @@
 #include <pwd.h>
 #include <shadow.h>
 
+extern bool valid_name(const char *name);
 extern bool is_shadow(const struct passwd *pw);
 extern int expired_check(const struct spwd *sp, long *daysleft, bool *pwchangeable);
 extern int verify_password(const char *hash, const char *password, bool nullok);

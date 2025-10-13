@@ -103,7 +103,7 @@ pwaccessd_c = ['src/pwaccessd.c', 'src/varlink-org.openSUSE.pwaccess.c',
                'src/mkdir_p.c', 'src/verify.c', 'src/varlink-service-common.c']
 pwupdd_c = ['src/pwupdd.c', 'src/varlink-org.openSUSE.pwupd.c',
             'src/mkdir_p.c', 'src/varlink-service-common.c', 'src/files.c',
-            'src/string-util-fundamental.c']
+            'src/string-util-fundamental.c', 'src/verify.c']
 
 executable('pwaccessd',
            pwaccessd_c,

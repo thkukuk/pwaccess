@@ -12,6 +12,38 @@
 #include "verify.h"
 
 bool
+valid_name(const char *name)
+{
+  /* This function tests if the name has invalid characters, not if the
+     name is really valid.
+
+     User/group names must match BRE regex:
+     [a-zA-Z0-9_.][a-zA-Z0-9_.-]*$\?
+
+     Reject every name containing additional characters.
+  */
+
+  if (isempty(name))
+    return false;
+
+  while (*name != '\0')
+    {
+      if (!((*name >= 'a' && *name <= 'z') ||
+            (*name >= 'A' && *name <= 'Z') ||
+            (*name >= '0' && *name <= '9') ||
+            *name == '_' ||
+            *name == '.' ||
+            *name == '-' ||
+            *name == '$')
+          )
+        return false;
+      ++name;
+    }
+
+  return true; 
+}
+
+bool
 is_shadow(const struct passwd *pw)
 {
   assert(pw);
