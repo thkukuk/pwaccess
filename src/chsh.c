@@ -68,7 +68,7 @@ print_help(void)
 
   fputs("  -l             List allowed shells from /etc/shells\n", stdout);
   fputs("  -s shell       Use 'shell' as new login shell\n", stdout);
-  fputs("      --help     Give this help list\n", stdout);
+  fputs("  -h, --help     Give this help list\n", stdout);
   fputs("  -u, --usage    Give a short usage message\n", stdout);
   fputs("  -v, --version  Print program version\n", stdout);
 }
@@ -95,11 +95,11 @@ main(int argc, char **argv)
           {"list-shells", no_argument,       NULL, 'l' },
           {"version",     no_argument,       NULL, 'v' },
           {"usage",       no_argument,       NULL, 'u' },
-          {"help",        no_argument,       NULL, '\255' },
+          {"help",        no_argument,       NULL, 'h' },
           {NULL,          0,                 NULL, '\0'}
         };
 
-      c = getopt_long (argc, argv, "s:lvu",
+      c = getopt_long (argc, argv, "s:lvuh",
                        long_options, &option_index);
       if (c == (-1))
         break;
@@ -116,7 +116,7 @@ main(int argc, char **argv)
             }
           new_shell = optarg;
           break;
-        case '\255':
+        case 'h':
           print_help();
           return 0;
         case 'v':
