@@ -44,6 +44,7 @@ static SD_VARLINK_DEFINE_ERROR(NoEntryFound);
 static SD_VARLINK_DEFINE_ERROR(InvalidParameter);
 static SD_VARLINK_DEFINE_ERROR(InternalError);
 static SD_VARLINK_DEFINE_ERROR(AuthenticationFailed);
+static SD_VARLINK_DEFINE_ERROR(InvalidShell);
 
 SD_VARLINK_DEFINE_INTERFACE(
                 org_openSUSE_pwupd,
@@ -65,5 +66,7 @@ SD_VARLINK_DEFINE_INTERFACE(
                 &vl_error_NoEntryFound,
 		SD_VARLINK_SYMBOL_COMMENT("Invalid parameter for varlink function call"),
                 &vl_error_InvalidParameter,
+		SD_VARLINK_SYMBOL_COMMENT("Invalid shell"),
+                &vl_error_InvalidShell,
 		SD_VARLINK_SYMBOL_COMMENT("Internal Error"),
 		&vl_error_InternalError);
