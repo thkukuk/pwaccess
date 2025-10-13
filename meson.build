@@ -158,6 +158,6 @@ subdir('units')
 subdir('tests')
 
 # Manual pages
-#subdir('man')
+subdir('man')
 
 subdir('example')

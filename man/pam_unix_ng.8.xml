@@ -1,0 +1,236 @@
+<refentry xmlns="http://docbook.org/ns/docbook" version="5.0" xml:id="pam_unix_ng">
+  <refmeta>
+    <refentrytitle>pam_unix_ng</refentrytitle>
+    <manvolnum>8</manvolnum>
+    <refmiscinfo class="source">pwaccess %version%</refmiscinfo>
+    <refmiscinfo class="manual">pam_unix_ng</refmiscinfo>
+  </refmeta>
+
+  <refnamediv>
+    <refname>pam_unix_ng</refname>
+    <refpurpose>PAM module for traditional password authenticaion</refpurpose>
+  </refnamediv>
+
+  <refsynopsisdiv>
+    <cmdsynopsis sepchar=" ">
+      <command>pam_unix_ng.so</command>
+      <arg choice="opt" rep="norepeat">
+	...
+      </arg>
+    </cmdsynopsis>
+  </refsynopsisdiv>
+
+  <refsect1>
+    <title>DESCRIPTION</title>
+    <para>
+      This is a standard UNIX authentication PAM module which delegates tasks requiring access to <filename>/etc/shadow</filename> to <citerefentry><refentrytitle>pwaccessd</refentrytitle><manvolnum>8</manvolnum></citerefentry>.
+    </para>
+  </refsect1>
+
+  <refsect1>
+    <title>OPTIONS</title>
+    <variablelist>
+      <varlistentry>
+        <term>
+          debug
+        </term>
+        <listitem>
+          <para>
+            Print debug information via
+	    <citerefentry>
+              <refentrytitle>syslog</refentrytitle><manvolnum>3</manvolnum>
+            </citerefentry>.
+          </para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term>
+          quiet
+        </term>
+        <listitem>
+          <para>
+            Avoid all messages except errors.
+          </para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term>
+          nullok
+        </term>
+        <listitem>
+          <para>
+            The default action of this module is to not permit the
+            user access to a service if their official password is blank.
+            The <option>nullok</option> argument overrides this default.
+          </para>
+        </listitem>
+      </varlistentry>
+            <varlistentry>
+        <term>
+          try_first_pass
+        </term>
+        <listitem>
+          <para>
+	    The module first attempts to use the password from the
+	    previously stacked modules to see if it is also suitable
+	    for this module before prompting the user to enter their
+	    password again.
+          </para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term>
+          use_first_pass
+        </term>
+        <listitem>
+          <para>
+	    The module only attempts to use the password from the
+            previously stacked modules and never prompts the user for
+	    input. If no password is available or the password does not
+            match, the user is denied access.
+          </para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term>
+          use_authtok
+        </term>
+        <listitem>
+          <para>
+	    When a password is changed, the module will set the new password
+	    to the one provided by a previously stacked
+	    <option>password</option> module.
+          </para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term>
+          authtok_type=type
+        </term>
+        <listitem>
+          <para>
+            This argument can be used to modify the password prompt when
+	    changing passwords to include the type of the password. The
+            default is an empty prefix.
+          </para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term>
+          fail_delay=&lt;milliseconds&gt;
+        </term>
+        <listitem>
+          <para>
+	    The module requests by default a delay of 2000 milliseconds
+	    should the authentication as a whole fail.
+            This argument can be used to adjust the delay or disable it
+	    (fail_delay=0).
+          </para>
+        </listitem>
+      </varlistentry>
+
+    </variablelist>
+  </refsect1>
+
+  <refsect1>
+    <title>MODULE TYPES PROVIDED</title>
+    <para>
+      All module types (<option>account</option>, <option>auth</option>,
+      <option>password</option>, <option>session</option>) are provided.
+    </para>
+  </refsect1>
+
+  <refsect1>
+    <title>RETURN VALUES</title>
+    <para>
+      <variablelist>
+
+        <varlistentry>
+          <term>PAM_SUCCESS</term>
+          <listitem>
+            <para>
+              Everything was successful.
+            </para>
+          </listitem>
+        </varlistentry>
+
+        <varlistentry>
+          <term>PAM_SERVICE_ERR</term>
+          <listitem>
+            <para>
+	      Internal service module error. This includes error reading
+              from or writing to the database.
+            </para>
+          </listitem>
+        </varlistentry>
+
+        <varlistentry>
+          <term>PAM_USER_UNKNOWN</term>
+          <listitem>
+            <para>
+	      User not known.
+            </para>
+          </listitem>
+        </varlistentry>
+
+        <varlistentry>
+          <term>PAM_IGNORE</term>
+          <listitem>
+            <para>
+              Returned by service types which do nothing.
+            </para>
+          </listitem>
+        </varlistentry>
+
+      </variablelist>
+    </para>
+  </refsect1>
+
+  <refsect1>
+    <title>EXAMPLES</title>
+    <para>
+      Add the following line to e.g. <filename>/etc/pam.d/login</filename> to
+      display the last login time of a user:
+    </para>
+    <programlisting>
+      session  required  pam_unix_ng.so
+    </programlisting>
+  </refsect1>
+
+  <refsect1>
+    <title>FILES</title>
+    <variablelist>
+      <varlistentry>
+        <term>/var/lib/wtmpdb/wtmp.db</term>
+        <listitem>
+          <para>Wtmpdb logging database file</para>
+        </listitem>
+      </varlistentry>
+    </variablelist>
+  </refsect1>
+
+  <refsect1>
+    <title>SEE ALSO</title>
+    <para>
+      <citerefentry>
+	<refentrytitle>wtmpdb</refentrytitle><manvolnum>8</manvolnum>
+      </citerefentry>,
+      <citerefentry>
+	<refentrytitle>pam.conf</refentrytitle><manvolnum>5</manvolnum>
+      </citerefentry>,
+      <citerefentry>
+	<refentrytitle>pam.d</refentrytitle><manvolnum>5</manvolnum>
+      </citerefentry>,
+      <citerefentry>
+        <refentrytitle>pam</refentrytitle><manvolnum>8</manvolnum>
+      </citerefentry>
+    </para>
+  </refsect1>
+
+  <refsect1>
+    <title>AUTHOR</title>
+    <para>
+      pam_unix_ng was written by Thorsten Kukuk &lt;kukuk@suse.com&gt;.
+    </para>
+  </refsect1>
+</refentry>
