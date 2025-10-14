@@ -16,9 +16,14 @@ extern uint32_t parse_args(pam_handle_t *pamh, int flags,
 			   uint32_t *fail_delay);
 extern int alloc_getxxnam_buffer(pam_handle_t *pamh,
 				 char **buf, long *size);
+extern int authenticate_user(pam_handle_t *pamh, uint32_t ctrl,
+			     const char *user, const char *password,
+			     bool *ret_authenticated, char **error);
+
+extern void log_authentication_failure(pam_handle_t *pamh, const char *user);
+
 extern void log_runtime_ms(pam_handle_t *pamh, const char *type, int retval,
 			   struct timespec start, struct timespec stop);
-
 static inline uint64_t
 timespec_diff_ms(struct timespec start, struct timespec stop)
 {
