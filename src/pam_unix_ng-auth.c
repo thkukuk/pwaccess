@@ -36,7 +36,12 @@ authenticate(pam_handle_t *pamh, uint32_t ctrl, uint32_t fail_delay)
   if (isempty(user))
     return PAM_USER_UNKNOWN;
 
-  if (ctrl & ARG_DEBUG)
+  if (!valid_name(user))
+    {
+      pam_syslog(pamh, LOG_ERR, "username contains invalid characters");
+      return PAM_USER_UNKNOWN;
+    }
+  else if (ctrl & ARG_DEBUG)
     pam_syslog(pamh, LOG_DEBUG, "username [%s]", user);
 
   /* XXX Don't prompt for a password if it is empty */
