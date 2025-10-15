@@ -229,14 +229,20 @@ unix_chauthtok(pam_handle_t *pamh, int flags, uint32_t ctrl)
 
       if (is_shadow(pw))
 	{
-#if 0 /* XXX */
-	  struct spwd newsp;
-	  memset(&pw, 0, sizeof(newsp));
-	  newsp.pw_namp = (char *)user;
-	  newsp.pw_pwdp = new_hash;
-
-	  r = update_shadow(&newsp, NULL);
-#endif
+	  /* we use _cleanup_ for this struct */
+	  free(sp->sp_namp);
+	  sp->sp_namp = strdup(user);
+	  if (sp->sp_namp == NULL)
+	    return -ENOMEM;
+	  free(sp->sp_pwdp);
+	  sp->sp_pwdp = strdup(new_hash);
+	  if (sp->sp_pwdp == NULL)
+	    return -ENOMEM;
+	  sp->sp_lstchg = time(NULL) / (60 * 60 * 24);
+	  if (sp->sp_lstchg == 0)
+	    sp->sp_lstchg = -1; /* Don't request passwort change
+				   only because time isn't set yet. */
+	  r = update_shadow(sp, NULL);
 	}
       else
 	{

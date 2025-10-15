@@ -9,5 +9,6 @@
 extern int get_local_user_record(pam_handle_t *pamh, const char *user,
 		struct passwd **ret_pw, struct spwd **ret_sp);
 extern int update_passwd(struct passwd *newpw, const char *etcdir);
+extern int update_shadow(struct spwd *newsp, const char *etcdir);
 
 extern int create_hash(pam_handle_t *pamh, const char *password, char **hash);
