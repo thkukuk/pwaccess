@@ -40,11 +40,11 @@ create_hash(pam_handle_t *pamh, const char *password, char **hash)
   if (sp == NULL)
     return -errno;
 
-  if (strneq(sp, algoid, strlen(algoid)))
+  if (!strneq(sp, algoid, strlen(algoid)))
     {
       /* crypt doesn't know the algorithm, error out */
       pam_syslog(pamh, LOG_ERR,
-		 "Algorithm %s not supported by the crypto backend.",
+		 "Algorithm '%s' not supported by the crypto backend.",
 		 algoid);
       explicit_bzero(cdata, sizeof(struct crypt_data));
       return -ENOSYS;
