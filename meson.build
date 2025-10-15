@@ -131,7 +131,8 @@ executable('passwd', 'src/passwd.c', 'src/varlink-client-common.c',
 
 pam_unix_ng_c = files('src/pam_unix_ng-common.c', 'src/pam_unix_ng-session.c',
                       'src/pam_unix_ng-acct.c', 'src/pam_unix_ng-auth.c', 
-                      'src/pam_unix_ng-passwd.c', 'src/verify.c')
+                      'src/pam_unix_ng-passwd.c', 'src/verify.c',
+                      'src/get_local_user_record.c')
 pam_unix_ng_map = 'src/pam_unix_ng.map'
 pam_unix_ng_map_version = '-Wl,--version-script,@0@/@1@'.format(meson.current_source_dir(), pam_unix_ng_map)
 

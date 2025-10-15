@@ -1,39 +1,174 @@
 // SPDX-License-Identifier: BSD-2-Clause
 
 #include <pwd.h>
+#include <time.h>
 #include <errno.h>
 #include <unistd.h>
 
 #include "basics.h"
 #include "pam_unix_ng.h"
 #include "pwaccess.h"
+#include "verify.h"
+#include "files.h"
+
+static int
+unix_chauthtok(pam_handle_t *pamh, int flags, uint32_t ctrl)
+{
+  const char *only_expired_authtok = "";
+  const char *user = NULL;
+  int r;
+
+  /* Validate flags */
+  if (flags & PAM_CHANGE_EXPIRED_AUTHTOK)
+    only_expired_authtok = ",only expired authtok";
+
+  if (flags & PAM_PRELIM_CHECK)
+    {
+      if (ctrl & ARG_DEBUG)
+	pam_syslog(pamh, LOG_DEBUG, "chauthtok called (prelim check%s)", only_expired_authtok);
+    }
+  else if (flags & PAM_UPDATE_AUTHTOK)
+    {
+      if (ctrl & ARG_DEBUG)
+	pam_syslog(pamh, LOG_DEBUG, "chauthtok called (update authtok%s)", only_expired_authtok);
+    }
+  else
+    {
+      pam_syslog(pamh, LOG_ERR, "chauthtok called without flag!");
+      return PAM_ABORT;
+    }
+
+  /* We must be root to update passwd and shadow. */
+  if (geteuid() != 0)
+    {
+      const char *no_root = "Calling proces must be root!";
+      pam_syslog(pamh, LOG_ERR, "%s", no_root);
+      pam_error(pamh, "%s", no_root);
+      return PAM_CRED_INSUFFICIENT;
+    }
+
+  /* Get login name */
+  r = pam_get_user(pamh, &user, NULL /* prompt=xxx */);
+  if (r != PAM_SUCCESS)
+    {
+      if (ctrl & ARG_DEBUG)
+        pam_syslog(pamh, LOG_DEBUG, "pam_get_user failed: return %d", r);
+      return (r == PAM_CONV_AGAIN ? PAM_INCOMPLETE:r);
+    }
+
+  if (isempty(user))
+    return PAM_USER_UNKNOWN;
+
+  if (!valid_name(user))
+    {
+      pam_syslog(pamh, LOG_ERR, "username contains invalid characters");
+      return PAM_USER_UNKNOWN;
+    }
+  else if (ctrl & ARG_DEBUG)
+    pam_syslog(pamh, LOG_DEBUG, "username [%s]", user);
+
+  if (flags & PAM_PRELIM_CHECK)
+    {
+      _cleanup_(struct_passwd_freep) struct passwd *pw = NULL;
+      _cleanup_(struct_shadow_freep) struct spwd *sp = NULL;
+      const char *pass_old = NULL;
+      bool authenticated = false;
+      _cleanup_free_ char *error = NULL;
+      bool i_am_root = (getuid() == 0 && !(flags & PAM_CHANGE_EXPIRED_AUTHTOK));
+
+      r = get_local_user_record(pamh, user, &pw, &sp);
+      if (r < 0)
+	{
+	  if (r == -ENOENT)
+	    {
+	      pam_syslog(pamh, LOG_ERR, "%s is no local user", user);
+	      pam_error(pamh, "You can only change local passwords.");
+	    }
+	  else
+	    {
+	      pam_syslog(pamh, LOG_ERR, "Getting local user records failed: %s", strerror(-r));
+	      pam_error(pamh, "Error getting user records");
+	    }
+	  return PAM_AUTHTOK_RECOVERY_ERR;
+	}
+
+      /* If this is being run by root and we change a local password,
+         we don't need to get the old password. The test for
+         PAM_CHANGE_EXPIRED_AUTHTOK is here, because login runs as
+         root and we need the old password in this case. */
+      if (i_am_root)
+	{
+	  if (ctrl & ARG_DEBUG)
+	    pam_syslog(pamh, LOG_DEBUG, "process run by root, do nothing");
+	  return PAM_SUCCESS;
+        }
+
+      /* XXX if (_unix_blankpasswd(pamh, ctrl, user))
+	 return PAM_SUCCESS; */
+
+      /* instruct user what is happening */
+      if (!(ctrl & ARG_QUIET))
+	{
+	  r = pam_info(pamh, "Changing password for %s.", user);
+	  if (r != PAM_SUCCESS)
+	    return r;
+	}
+
+      r = pam_get_authtok(pamh, PAM_OLDAUTHTOK, &pass_old, NULL);
+      if (r != PAM_SUCCESS)
+	{
+	  pam_syslog(pamh, LOG_NOTICE, "password - old token not obtained");
+	  return r;
+	}
+
+      r = authenticate_user(pamh, ctrl, user, pass_old, &authenticated, &error);
+      pass_old = NULL;
+      if (r != PAM_SUCCESS || !authenticated)
+	{
+	  log_authentication_failure(pamh, user);
+	  if (r != PAM_SUCCESS)
+	    return r;
+
+	  return PAM_AUTH_ERR;
+	}
+
+      bool pwchangeable = true;
+      r = expired_check(sp, NULL, &pwchangeable);
+      if (!pwchangeable  && !i_am_root)
+	{
+	  pam_error(pamh, "You must wait longer to change your password.");
+	  return PAM_AUTHTOK_ERR;
+	}
+    }
+  else if (flags & PAM_UPDATE_AUTHTOK)
+    {
+      /* XXX */
+    }
+
+  return PAM_SUCCESS;
+}
 
 int
 pam_sm_chauthtok(pam_handle_t *pamh, int flags,
 		 int argc, const char **argv)
 {
+  struct timespec start, stop;
   uint32_t ctrl = parse_args(pamh, flags, argc, argv, NULL);
 
-  if (flags & PAM_CHANGE_EXPIRED_AUTHTOK)
+  if (ctrl & ARG_DEBUG)
     {
-      if (ctrl & ARG_DEBUG)
-        pam_syslog(pamh, LOG_DEBUG, "chauthtok called (only expired authtok)");
-    }
-  if (flags & PAM_PRELIM_CHECK)
-    {
-      if (ctrl & ARG_DEBUG)
-	pam_syslog(pamh, LOG_DEBUG, "chauthtok called (prelim check)");
-    }
-  else if (flags & PAM_UPDATE_AUTHTOK)
-    {
-      if (ctrl & ARG_DEBUG)
-	pam_syslog(pamh, LOG_DEBUG, "chauthtok called (update authtok)");
-    }
-  else
-    {
-      pam_syslog(pamh, LOG_ERR, "chauthtok called without flag!");
-      return PAM_SYSTEM_ERR;
+      clock_gettime(CLOCK_MONOTONIC, &start);
+      pam_syslog(pamh, LOG_DEBUG, "chauthtok called");
     }
 
-  return PAM_IGNORE;
+  int retval = unix_chauthtok(pamh, flags, ctrl);
+
+  if (ctrl & ARG_DEBUG)
+    {
+      clock_gettime(CLOCK_MONOTONIC, &stop);
+
+      log_runtime_ms(pamh, "chauthtok", retval, start, stop);
+    }
+
+  return retval;
 }
