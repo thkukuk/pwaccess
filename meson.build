@@ -67,7 +67,7 @@ endif
 libpam = dependency('pam', required: true)
 libpam_misc = dependency('pam_misc', required: true)
 libsystemd = dependency('libsystemd', version: '>= 257', required: true)
-libcrypt = dependency('libcrypt', 'libxcrypt', required: true)
+libcrypt = dependency('libxcrypt', version: '>= 4.4.27', required: true)
 libeconf = dependency('libeconf', version : '>=0.7.5', required : true)
 libselinux = dependency('libselinux', required: get_option('selinux'))
 if libselinux.found()
@@ -132,7 +132,8 @@ executable('passwd', 'src/passwd.c', 'src/varlink-client-common.c',
 pam_unix_ng_c = files('src/pam_unix_ng-common.c', 'src/pam_unix_ng-session.c',
                       'src/pam_unix_ng-acct.c', 'src/pam_unix_ng-auth.c', 
                       'src/pam_unix_ng-passwd.c', 'src/verify.c',
-                      'src/get_local_user_record.c')
+                      'src/get_local_user_record.c', 'src/files.c',
+                      'src/string-util-fundamental.c', 'src/create_hash.c')
 pam_unix_ng_map = 'src/pam_unix_ng.map'
 pam_unix_ng_map_version = '-Wl,--version-script,@0@/@1@'.format(meson.current_source_dir(), pam_unix_ng_map)
 
@@ -144,7 +145,7 @@ pam_unix_ng = shared_library(
   link_args : ['-shared', pam_unix_ng_map_version],
   link_depends : pam_unix_ng_map,
   link_with : libpwaccess,
-  dependencies : [libcrypt, libpam],
+  dependencies : [libcrypt, libpam, libselinux],
   install : true,
   install_dir : pamlibdir
 )

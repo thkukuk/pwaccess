@@ -11,9 +11,14 @@
 #include "verify.h"
 #include "files.h"
 
+#define MAX_PASSWD_TRIES 3
+
 static int
 unix_chauthtok(pam_handle_t *pamh, int flags, uint32_t ctrl)
 {
+  _cleanup_(struct_passwd_freep) struct passwd *pw = NULL;
+  _cleanup_(struct_shadow_freep) struct spwd *sp = NULL;
+  bool i_am_root = (getuid() == 0 && !(flags & PAM_CHANGE_EXPIRED_AUTHTOK));
   const char *only_expired_authtok = "";
   const char *user = NULL;
   int r;
@@ -67,30 +72,27 @@ unix_chauthtok(pam_handle_t *pamh, int flags, uint32_t ctrl)
   else if (ctrl & ARG_DEBUG)
     pam_syslog(pamh, LOG_DEBUG, "username [%s]", user);
 
+  r = get_local_user_record(pamh, user, &pw, &sp);
+  if (r < 0)
+    {
+      if (r == -ENOENT)
+	{
+	  pam_syslog(pamh, LOG_ERR, "%s is no local user", user);
+	  pam_error(pamh, "You can only change local passwords.");
+	}
+      else
+	{
+	  pam_syslog(pamh, LOG_ERR, "getting local user records failed: %s", strerror(-r));
+	  pam_error(pamh, "Error getting user records");
+	}
+      return PAM_AUTHTOK_RECOVERY_ERR;
+    }
+
   if (flags & PAM_PRELIM_CHECK)
     {
-      _cleanup_(struct_passwd_freep) struct passwd *pw = NULL;
-      _cleanup_(struct_shadow_freep) struct spwd *sp = NULL;
       const char *pass_old = NULL;
       bool authenticated = false;
       _cleanup_free_ char *error = NULL;
-      bool i_am_root = (getuid() == 0 && !(flags & PAM_CHANGE_EXPIRED_AUTHTOK));
-
-      r = get_local_user_record(pamh, user, &pw, &sp);
-      if (r < 0)
-	{
-	  if (r == -ENOENT)
-	    {
-	      pam_syslog(pamh, LOG_ERR, "%s is no local user", user);
-	      pam_error(pamh, "You can only change local passwords.");
-	    }
-	  else
-	    {
-	      pam_syslog(pamh, LOG_ERR, "Getting local user records failed: %s", strerror(-r));
-	      pam_error(pamh, "Error getting user records");
-	    }
-	  return PAM_AUTHTOK_RECOVERY_ERR;
-	}
 
       /* If this is being run by root and we change a local password,
          we don't need to get the old password. The test for
@@ -125,6 +127,8 @@ unix_chauthtok(pam_handle_t *pamh, int flags, uint32_t ctrl)
       pass_old = NULL;
       if (r != PAM_SUCCESS || !authenticated)
 	{
+	  if (error)
+	    pam_syslog(pamh, LOG_ERR, "authentication error: %s", error);
 	  log_authentication_failure(pamh, user);
 	  if (r != PAM_SUCCESS)
 	    return r;
@@ -134,7 +138,7 @@ unix_chauthtok(pam_handle_t *pamh, int flags, uint32_t ctrl)
 
       bool pwchangeable = true;
       r = expired_check(sp, NULL, &pwchangeable);
-      if (!pwchangeable  && !i_am_root)
+      if (!pwchangeable && !i_am_root)
 	{
 	  pam_error(pamh, "You must wait longer to change your password.");
 	  return PAM_AUTHTOK_ERR;
@@ -142,7 +146,109 @@ unix_chauthtok(pam_handle_t *pamh, int flags, uint32_t ctrl)
     }
   else if (flags & PAM_UPDATE_AUTHTOK)
     {
-      /* XXX */
+      const char *pass_old = NULL;
+      const char *pass_new = NULL;
+      const void *item;
+      int retry = 0;
+
+      /* Get the old password again. */
+      r = pam_get_item(pamh, PAM_OLDAUTHTOK, &item);
+      if (r != PAM_SUCCESS)
+	{
+	  pam_syslog(pamh, LOG_NOTICE, "User %s not authenticated: %s",
+		     user, pam_strerror(pamh, r));
+	  return r;
+	}
+
+      pass_old = item;
+
+      r = PAM_AUTHTOK_ERR;
+      while ((r != PAM_SUCCESS) && (retry++ < MAX_PASSWD_TRIES))
+	{
+	  const char *no_new_pass_msg = "No new password has been supplied";
+
+	  /* use_authtok is to force the use of a previously entered
+	     password -- needed for pluggable password strength checking */
+	  r = pam_get_authtok(pamh, PAM_AUTHTOK, &pass_new, NULL);
+	  if (r == PAM_TRY_AGAIN) /* New authentication tokens mismatch. */
+	    continue;
+	  if (r != PAM_SUCCESS)
+	    {
+	      if (ctrl & ARG_DEBUG)
+		pam_syslog(pamh, LOG_DEBUG, "%s - %s", no_new_pass_msg, pam_strerror(pamh, r));
+	      pass_old = NULL;
+	      return r;
+	    }
+
+	  if (isempty(pass_new) || streq(pass_new, pass_old))
+	    {
+	      /* remove new password for other modules */
+	      pam_set_item(pamh, PAM_AUTHTOK, NULL);
+	      if (ctrl & ARG_DEBUG)
+		pam_syslog(pamh, LOG_DEBUG, "%s", no_new_pass_msg);
+	      pam_error(pamh, "%s.", no_new_pass_msg);
+	      r = PAM_AUTHTOK_ERR;
+	    }
+
+	  if (strlen(strempty(pass_new)) > PAM_MAX_RESP_SIZE)
+	    {
+	      pam_syslog(pamh, LOG_NOTICE, "supplied password to long");
+	      pam_error(pamh, "You must choose a shorter password.");
+	      r = PAM_AUTHTOK_ERR;
+	    }
+	  else if (!i_am_root)
+	    {
+	      size_t pass_min_len = 8; /* XXX make this configurable */
+	      if (strlen(pass_new) < pass_min_len)
+		{
+		  pam_syslog(pamh, LOG_NOTICE, "supplied password too short");
+                  pam_error(pamh, "You must choose a longer password.");
+		  r = PAM_AUTHTOK_ERR;
+                }
+	    }
+	}
+      if (r != PAM_SUCCESS)
+	{
+	  pam_syslog(pamh, LOG_NOTICE, "new password not acceptable");
+	  pass_new = pass_old = NULL; /* cleanup */
+	  return r;
+	}
+
+      /* We have an approved password, create new hash and
+	 change the database */
+
+      char *new_hash = NULL;
+      r = create_hash(pamh, pass_new, &new_hash);
+      if (r < 0 || new_hash == NULL)
+	{
+	  pam_syslog(pamh, LOG_CRIT,
+		     "crypt() failure or out of memory for password");
+	  pass_new = pass_old = NULL; /* cleanup */
+	  return PAM_BUF_ERR;
+	}
+
+      if (is_shadow(pw))
+	{
+#if 0 /* XXX */
+	  struct spwd newsp;
+	  memset(&pw, 0, sizeof(newsp));
+	  newsp.pw_namp = (char *)user;
+	  newsp.pw_pwdp = new_hash;
+
+	  r = update_shadow(&newsp, NULL);
+#endif
+	}
+      else
+	{
+	  struct passwd newpw;
+	  memset(&newpw, 0, sizeof(newpw));
+	  newpw.pw_name = (char *)user;
+	  newpw.pw_passwd = new_hash;
+
+	  r = update_passwd(&newpw, NULL);
+	}
+      explicit_bzero(new_hash, strlen(new_hash));
+      pass_old = pass_new = NULL;
     }
 
   return PAM_SUCCESS;

@@ -138,6 +138,7 @@ update_passwd_locked(struct passwd *newpw, const char *etcdir)
     {
       if(!gotit && streq(newpw->pw_name, pw->pw_name))
 	{
+	  /* XXX we don't allow to change uid/gid yet */
 	  int changed = 0;
 	  if (!isempty(newpw->pw_passwd) && !streq(pw->pw_passwd, newpw->pw_passwd))
 	    {
@@ -224,6 +225,9 @@ update_passwd(struct passwd *newpw, const char *etcdir)
       if (r < 0)
 	return r;
     }
+
+  /* XXX use old password to verify again, else some other process could
+   * have already changed the password meanwhile */
 
   if (asprintf(&passwd_orig, "%s/passwd", etcdir) < 0)
     return -ENOMEM;
