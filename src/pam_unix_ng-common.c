@@ -10,22 +10,6 @@
 #include "pam_unix_ng.h"
 #include "verify.h"
 
-/* From pam_inline.h
- *
- * Returns NULL if STR does not start with PREFIX,
- * or a pointer to the first char in STR after PREFIX.
- */
-static inline const char *
-skip_prefix(const char *str, const char *prefix)
-{
-  assert(str);
-  assert(prefix);
-
-  size_t prefix_len = strlen(prefix);
-
-  return strncmp(str, prefix, prefix_len) ? NULL : str + prefix_len;
-}
-
 uint32_t
 parse_args(pam_handle_t *pamh, int flags, int argc, const char **argv,
 	   uint32_t *fail_delay)
@@ -46,7 +30,7 @@ parse_args(pam_handle_t *pamh, int flags, int argc, const char **argv,
 	ctrl |= ARG_QUIET;
       else if (streq(*argv, "nullok"))
         ctrl |= ARG_NULLOK;
-      else if ((cp = skip_prefix(*argv, "fail_delay=")) != NULL)
+      else if ((cp = startswith(*argv, "fail_delay=")) != NULL)
 	{
 	  char *ep;
 	  long l;
@@ -62,8 +46,10 @@ parse_args(pam_handle_t *pamh, int flags, int argc, const char **argv,
 	    *fail_delay = l;
 	}
       /* this options are handled by pam_get_authtok() */
-      else if (!streq(*argv, "try_first_pass") && !streq(*argv, "use_first_pass") &&
-	       !streq(*argv, "use_authtok") && skip_prefix(*argv, "authtok_type=") == NULL)
+      else if (!streq(*argv, "try_first_pass") &&
+	       !streq(*argv, "use_first_pass") &&
+	       !streq(*argv, "use_authtok") &&
+	       startswith(*argv, "authtok_type=") == NULL)
 	pam_syslog(pamh, LOG_ERR, "Unknown option: %s", *argv);
     }
 
