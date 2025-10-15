@@ -180,7 +180,7 @@ unix_chauthtok(pam_handle_t *pamh, int flags, uint32_t ctrl)
 	      return r;
 	    }
 
-	  if (isempty(pass_new) || streq(pass_new, pass_old))
+	  if (isempty(pass_new) || (pass_old && streq(pass_new, pass_old)))
 	    {
 	      /* remove new password for other modules */
 	      pam_set_item(pamh, PAM_AUTHTOK, NULL);
