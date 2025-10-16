@@ -230,10 +230,6 @@ unix_chauthtok(pam_handle_t *pamh, int flags, uint32_t ctrl)
       if (is_shadow(pw))
 	{
 	  /* we use _cleanup_ for this struct */
-	  free(sp->sp_namp);
-	  sp->sp_namp = strdup(user);
-	  if (sp->sp_namp == NULL)
-	    return -ENOMEM;
 	  free(sp->sp_pwdp);
 	  sp->sp_pwdp = strdup(new_hash);
 	  if (sp->sp_pwdp == NULL)
@@ -246,12 +242,13 @@ unix_chauthtok(pam_handle_t *pamh, int flags, uint32_t ctrl)
 	}
       else
 	{
-	  struct passwd newpw;
-	  memset(&newpw, 0, sizeof(newpw));
-	  newpw.pw_name = (char *)user;
-	  newpw.pw_passwd = new_hash;
+	  /* we use _cleanup_ for this struct */
+	  free(pw->pw_passwd);
+	  pw->pw_passwd = strdup(new_hash);
+	  if (pw->pw_passwd == NULL)
+	    return -ENOMEM;
 
-	  r = update_passwd(&newpw, NULL);
+	  r = update_passwd(pw, NULL);
 	}
       explicit_bzero(new_hash, strlen(new_hash));
       pass_old = pass_new = NULL;
