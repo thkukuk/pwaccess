@@ -102,6 +102,7 @@ pkg.generate(
 libcommon_c = files('libcommon/create_hash.c',
                     'libcommon/files.c',
                     'libcommon/mkdir_p.c',
+                    'libcommon/no_new_privs.c',
                     'libcommon/string-util-fundamental.c',
                     'libcommon/verify.c')
 
