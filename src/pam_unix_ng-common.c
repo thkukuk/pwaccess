@@ -10,40 +10,55 @@
 #include "pam_unix_ng.h"
 #include "verify.h"
 
-uint32_t
+int
 parse_args(pam_handle_t *pamh, int flags, int argc, const char **argv,
-	   uint32_t *fail_delay)
+	   struct config_t *cfg)
 {
   const char *cp;
-  uint32_t ctrl = 0;
+
+  /* clear all variables */
+  memset(cfg, 0, sizeof(struct config_t));
+
+  /* defaults */
+  cfg->fail_delay = 2000;
+  cfg->minlen = 8;
 
   /* does the application require quiet? */
   if (flags & PAM_SILENT)
-    ctrl |= ARG_QUIET;
+    cfg->ctrl |= ARG_QUIET;
 
   /* step through arguments */
   for (; argc-- > 0; ++argv)
     {
       if (streq(*argv, "debug"))
-	ctrl |= ARG_DEBUG;
+	cfg->ctrl |= ARG_DEBUG;
       else if (streq(*argv, "quiet"))
-	ctrl |= ARG_QUIET;
+	cfg->ctrl |= ARG_QUIET;
       else if (streq(*argv, "nullok"))
-        ctrl |= ARG_NULLOK;
-      else if ((cp = startswith(*argv, "fail_delay=")) != NULL)
+        cfg->ctrl |= ARG_NULLOK;
+      else if ((cp = startswith(*argv, "minlen=")) != NULL)
 	{
 	  char *ep;
 	  long l;
 
-	  if (fail_delay != NULL)
-	    continue;
+	  l = strtol(cp, &ep, 10);
+	  if (l == LONG_MAX || l < 0 || l > UINT32_MAX ||
+	      cp == ep || *ep != '\0')
+	    pam_syslog(pamh, LOG_ERR, "Cannot parse 'minlen=%s'", cp);
+	  else
+	    cfg->minlen = l;
+	}
+      else if ((cp = startswith(*argv, "fail_delay=")) != NULL)
+	{
+	  char *ep;
+	  long l;
 
 	  l = strtol(cp, &ep, 10);
 	  if (l == LONG_MAX || l < 0 || l > UINT32_MAX ||
 	      cp == ep || *ep != '\0')
 	    pam_syslog(pamh, LOG_ERR, "Cannot parse 'fail_delay=%s'", cp);
 	  else
-	    *fail_delay = l;
+	    cfg->fail_delay = l;
 	}
       /* this options are handled by pam_get_authtok() */
       else if (!streq(*argv, "try_first_pass") &&
@@ -53,7 +68,7 @@ parse_args(pam_handle_t *pamh, int flags, int argc, const char **argv,
 	pam_syslog(pamh, LOG_ERR, "Unknown option: %s", *argv);
     }
 
-  return ctrl;
+  return 0;
 }
 
 int

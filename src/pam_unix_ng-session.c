@@ -21,14 +21,24 @@ pam_sm_open_session(pam_handle_t *pamh, int flags,
   long pwbufsize;
   const void *void_str;
   const char *user;
-  uint32_t ctrl = parse_args(pamh, flags, argc, argv, NULL);
+  struct config_t cfg;
   int r;
 
-  if (ctrl & ARG_DEBUG)
+  r = parse_args(pamh, flags, argc, argv, &cfg);
+  if (r < 0)
+    {
+      /* XXX new function with errno -> PAM return value mapping */
+      if (r == -ENOMEM)
+        return PAM_BUF_ERR;
+      else
+        return PAM_SERVICE_ERR;
+    }
+
+  if (cfg.ctrl & ARG_DEBUG)
     pam_syslog(pamh, LOG_DEBUG, "open_session called");
 
   /* don't do anything if we don't log it */
-  if (ctrl & ARG_QUIET)
+  if (cfg.ctrl & ARG_QUIET)
     return PAM_SUCCESS;
 
   r = pam_get_item(pamh, PAM_USER, &void_str);
@@ -75,14 +85,24 @@ pam_sm_close_session(pam_handle_t *pamh, int flags,
 {
   const void *void_str;
   const char *user;
-  uint32_t ctrl = parse_args(pamh, flags, argc, argv, NULL);
+  struct config_t cfg;
   int r;
 
-  if (ctrl & ARG_DEBUG)
+  r = parse_args(pamh, flags, argc, argv, &cfg);
+  if (r < 0)
+    {
+      /* XXX new function with errno -> PAM return value mapping */
+      if (r == -ENOMEM)
+        return PAM_BUF_ERR;
+      else
+        return PAM_SERVICE_ERR;
+    }
+
+  if (cfg.ctrl & ARG_DEBUG)
     pam_syslog(pamh, LOG_DEBUG, "close_session called");
 
   /* don't do anything if we don't log it */
-  if (ctrl & ARG_QUIET)
+  if (cfg.ctrl & ARG_QUIET)
     return PAM_SUCCESS;
 
   r = pam_get_item(pamh, PAM_USER, &void_str);

@@ -141,7 +141,7 @@ get_local_user_record(pam_handle_t *pamh, const char *user,
 }
 
 static int
-unix_chauthtok(pam_handle_t *pamh, int flags, uint32_t ctrl)
+unix_chauthtok(pam_handle_t *pamh, int flags, struct config_t *cfg)
 {
   _cleanup_(struct_passwd_freep) struct passwd *pw = NULL;
   _cleanup_(struct_shadow_freep) struct spwd *sp = NULL;
@@ -156,12 +156,12 @@ unix_chauthtok(pam_handle_t *pamh, int flags, uint32_t ctrl)
 
   if (flags & PAM_PRELIM_CHECK)
     {
-      if (ctrl & ARG_DEBUG)
+      if (cfg->ctrl & ARG_DEBUG)
 	pam_syslog(pamh, LOG_DEBUG, "chauthtok called (prelim check%s)", only_expired_authtok);
     }
   else if (flags & PAM_UPDATE_AUTHTOK)
     {
-      if (ctrl & ARG_DEBUG)
+      if (cfg->ctrl & ARG_DEBUG)
 	pam_syslog(pamh, LOG_DEBUG, "chauthtok called (update authtok%s)", only_expired_authtok);
     }
   else
@@ -183,7 +183,7 @@ unix_chauthtok(pam_handle_t *pamh, int flags, uint32_t ctrl)
   r = pam_get_user(pamh, &user, NULL /* prompt=xxx */);
   if (r != PAM_SUCCESS)
     {
-      if (ctrl & ARG_DEBUG)
+      if (cfg->ctrl & ARG_DEBUG)
         pam_syslog(pamh, LOG_DEBUG, "pam_get_user failed: return %d", r);
       return (r == PAM_CONV_AGAIN ? PAM_INCOMPLETE:r);
     }
@@ -196,7 +196,7 @@ unix_chauthtok(pam_handle_t *pamh, int flags, uint32_t ctrl)
       pam_syslog(pamh, LOG_ERR, "username contains invalid characters");
       return PAM_USER_UNKNOWN;
     }
-  else if (ctrl & ARG_DEBUG)
+  else if (cfg->ctrl & ARG_DEBUG)
     pam_syslog(pamh, LOG_DEBUG, "username [%s]", user);
 
   r = get_local_user_record(pamh, user, &pw, &sp);
@@ -227,16 +227,16 @@ unix_chauthtok(pam_handle_t *pamh, int flags, uint32_t ctrl)
          root and we need the old password in this case. */
       if (i_am_root)
 	{
-	  if (ctrl & ARG_DEBUG)
+	  if (cfg->ctrl & ARG_DEBUG)
 	    pam_syslog(pamh, LOG_DEBUG, "process run by root, do nothing");
 	  return PAM_SUCCESS;
         }
 
-      /* XXX if (_unix_blankpasswd(pamh, ctrl, user))
+      /* XXX if (_unix_blankpasswd(pamh, cfg->ctrl, user))
 	 return PAM_SUCCESS; */
 
       /* instruct user what is happening */
-      if (!(ctrl & ARG_QUIET))
+      if (!(cfg->ctrl & ARG_QUIET))
 	{
 	  r = pam_info(pamh, "Changing password for %s.", user);
 	  if (r != PAM_SUCCESS)
@@ -250,7 +250,7 @@ unix_chauthtok(pam_handle_t *pamh, int flags, uint32_t ctrl)
 	  return r;
 	}
 
-      r = authenticate_user(pamh, ctrl, user, pass_old, &authenticated, &error);
+      r = authenticate_user(pamh, cfg->ctrl, user, pass_old, &authenticated, &error);
       pass_old = NULL;
       if (r != PAM_SUCCESS || !authenticated)
 	{
@@ -301,7 +301,7 @@ unix_chauthtok(pam_handle_t *pamh, int flags, uint32_t ctrl)
 	    continue;
 	  if (r != PAM_SUCCESS)
 	    {
-	      if (ctrl & ARG_DEBUG)
+	      if (cfg->ctrl & ARG_DEBUG)
 		pam_syslog(pamh, LOG_DEBUG, "%s - %s", no_new_pass_msg, pam_strerror(pamh, r));
 	      pass_old = NULL;
 	      return r;
@@ -311,7 +311,7 @@ unix_chauthtok(pam_handle_t *pamh, int flags, uint32_t ctrl)
 	    {
 	      /* remove new password for other modules */
 	      pam_set_item(pamh, PAM_AUTHTOK, NULL);
-	      if (ctrl & ARG_DEBUG)
+	      if (cfg->ctrl & ARG_DEBUG)
 		pam_syslog(pamh, LOG_DEBUG, "%s", no_new_pass_msg);
 	      pam_error(pamh, "%s.", no_new_pass_msg);
 	      r = PAM_AUTHTOK_ERR;
@@ -325,8 +325,7 @@ unix_chauthtok(pam_handle_t *pamh, int flags, uint32_t ctrl)
 	    }
 	  else if (!i_am_root)
 	    {
-	      size_t pass_min_len = 8; /* XXX make this configurable */
-	      if (strlen(pass_new) < pass_min_len)
+	      if (strlen(pass_new) < (size_t)cfg->minlen)
 		{
 		  pam_syslog(pamh, LOG_NOTICE, "supplied password too short");
                   pam_error(pamh, "You must choose a longer password.");
@@ -389,17 +388,28 @@ pam_sm_chauthtok(pam_handle_t *pamh, int flags,
 		 int argc, const char **argv)
 {
   struct timespec start, stop;
-  uint32_t ctrl = parse_args(pamh, flags, argc, argv, NULL);
+  struct config_t cfg;
+  int r;
 
-  if (ctrl & ARG_DEBUG)
+  r = parse_args(pamh, flags, argc, argv, &cfg);
+  if (r < 0)
+    {
+      /* XXX new function with errno -> PAM return value mapping */
+      if (r == -ENOMEM)
+        return PAM_BUF_ERR;
+      else
+        return PAM_SERVICE_ERR;
+    }
+
+  if (cfg.ctrl & ARG_DEBUG)
     {
       clock_gettime(CLOCK_MONOTONIC, &start);
       pam_syslog(pamh, LOG_DEBUG, "chauthtok called");
     }
 
-  int retval = unix_chauthtok(pamh, flags, ctrl);
+  int retval = unix_chauthtok(pamh, flags, &cfg);
 
-  if (ctrl & ARG_DEBUG)
+  if (cfg.ctrl & ARG_DEBUG)
     {
       clock_gettime(CLOCK_MONOTONIC, &stop);
 

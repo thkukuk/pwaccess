@@ -11,7 +11,7 @@
 #include "verify.h"
 
 static int
-authenticate(pam_handle_t *pamh, uint32_t ctrl, uint32_t fail_delay)
+authenticate(pam_handle_t *pamh, struct config_t *cfg)
 {
   bool authenticated = false;
   _cleanup_free_ char *error = NULL;
@@ -23,7 +23,7 @@ authenticate(pam_handle_t *pamh, uint32_t ctrl, uint32_t fail_delay)
   r = pam_get_user(pamh, &user, NULL /* prompt=xxx */);
   if (r != PAM_SUCCESS)
     {
-      if (ctrl & ARG_DEBUG)
+      if (cfg->ctrl & ARG_DEBUG)
         pam_syslog(pamh, LOG_DEBUG, "pam_get_user failed: return %d", r);
       return (r == PAM_CONV_AGAIN ? PAM_INCOMPLETE:r);
     }
@@ -37,7 +37,7 @@ authenticate(pam_handle_t *pamh, uint32_t ctrl, uint32_t fail_delay)
       pam_syslog(pamh, LOG_ERR, "username contains invalid characters");
       return PAM_USER_UNKNOWN;
     }
-  else if (ctrl & ARG_DEBUG)
+  else if (cfg->ctrl & ARG_DEBUG)
     pam_syslog(pamh, LOG_DEBUG, "username [%s]", user);
 
   /* XXX Don't prompt for a password if it is empty */
@@ -46,7 +46,7 @@ authenticate(pam_handle_t *pamh, uint32_t ctrl, uint32_t fail_delay)
   r = pam_get_authtok(pamh, PAM_AUTHTOK, &password, NULL /* prompt */);
   if (r != PAM_SUCCESS)
     {
-      if (ctrl & ARG_DEBUG)
+      if (cfg->ctrl & ARG_DEBUG)
         pam_syslog(pamh, LOG_DEBUG, "pam_get_authtok failed: return %d", r);
       if (r != PAM_CONV_AGAIN)
 	pam_syslog(pamh, LOG_CRIT, "Could not get password for [%s]", user);
@@ -54,12 +54,13 @@ authenticate(pam_handle_t *pamh, uint32_t ctrl, uint32_t fail_delay)
       return (r == PAM_CONV_AGAIN ? PAM_INCOMPLETE:r);
     }
 
-  if (fail_delay != 0)
+  if (cfg->fail_delay != 0)
     {
-      r = pam_fail_delay(pamh, fail_delay*1000);   /* convert milliseconds to microseconds */
+      /* convert milliseconds to microseconds */
+      r = pam_fail_delay(pamh, cfg->fail_delay*1000);
       if (r != PAM_SUCCESS)
 	{
-	  if (ctrl & ARG_DEBUG)
+	  if (cfg->ctrl & ARG_DEBUG)
 	    pam_syslog(pamh, LOG_DEBUG, "pam_fail_delay failed: return %d", r);
 	  pam_syslog(pamh, LOG_CRIT, "Could not set fail delay");
 
@@ -67,7 +68,7 @@ authenticate(pam_handle_t *pamh, uint32_t ctrl, uint32_t fail_delay)
 	}
     }
 
-  r = authenticate_user(pamh, ctrl, user, password, &authenticated, &error);
+  r = authenticate_user(pamh, cfg->ctrl, user, password, &authenticated, &error);
   if (r != PAM_SUCCESS)
     return r;
 
@@ -84,34 +85,55 @@ pam_sm_authenticate(pam_handle_t *pamh, int flags,
 		    int argc, const char **argv)
 {
   struct timespec start, stop;
-  uint32_t fail_delay = 2000;
-  uint32_t ctrl = parse_args(pamh, flags, argc, argv, &fail_delay);
+  struct config_t cfg;
+  int r;
 
-  if (ctrl & ARG_DEBUG)
+  r = parse_args(pamh, flags, argc, argv, &cfg);
+  if (r < 0)
+    {
+      /* XXX new function with errno -> PAM return value mapping */
+      if (r == -ENOMEM)
+	return PAM_BUF_ERR;
+      else
+	return PAM_SERVICE_ERR;
+    }
+
+  if (cfg.ctrl & ARG_DEBUG)
     {
       clock_gettime(CLOCK_MONOTONIC, &start);
       pam_syslog(pamh, LOG_DEBUG, "authenticate called");
     }
 
-  int retval = authenticate(pamh, ctrl, fail_delay);
+  r = authenticate(pamh, &cfg);
 
-  if (ctrl & ARG_DEBUG)
+  if (cfg.ctrl & ARG_DEBUG)
     {
       clock_gettime(CLOCK_MONOTONIC, &stop);
 
-      log_runtime_ms(pamh, "authenticate", retval, start, stop);
+      log_runtime_ms(pamh, "authenticate", r, start, stop);
     }
 
-  return retval;
+  return r;
 }
 
 int
 pam_sm_setcred(pam_handle_t *pamh, int flags,
 	       int argc, const char **argv)
 {
-  uint32_t ctrl = parse_args(pamh, flags, argc, argv, NULL);
+  struct config_t cfg;
+  int r;
 
-  if (ctrl & ARG_DEBUG)
+  r = parse_args(pamh, flags, argc, argv, &cfg);
+  if (r < 0)
+    {
+      /* XXX new function with errno -> PAM return value mapping */
+      if (r == -ENOMEM)
+	return PAM_BUF_ERR;
+      else
+	return PAM_SERVICE_ERR;
+    }
+
+  if (cfg.ctrl & ARG_DEBUG)
     pam_syslog(pamh, LOG_DEBUG, "setcred called");
 
   return PAM_SUCCESS;

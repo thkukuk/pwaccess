@@ -11,9 +11,15 @@
 #define ARG_QUIET	2 /* keep quiet about things */
 #define ARG_NULLOK	4 /* allow blank passwords */
 
-extern uint32_t parse_args(pam_handle_t *pamh, int flags,
-			   int argc, const char **argv,
-			   uint32_t *fail_delay);
+struct config_t
+{
+  uint32_t ctrl;
+  uint32_t fail_delay;  /* sleep of milliseconds in case of auth failure */
+  int minlen;           /* minimal length of new password */
+};
+
+extern int parse_args(pam_handle_t *pamh, int flags,
+		      int argc, const char **argv, struct config_t *cfg);
 extern int alloc_getxxnam_buffer(pam_handle_t *pamh,
 				 char **buf, long *size);
 extern int authenticate_user(pam_handle_t *pamh, uint32_t ctrl,
@@ -29,4 +35,3 @@ timespec_diff_ms(struct timespec start, struct timespec stop)
 {
   return ((stop.tv_sec - start.tv_sec) * 1000000000 + (stop.tv_nsec - start.tv_nsec)) / 1000 / 1000;
 }
-

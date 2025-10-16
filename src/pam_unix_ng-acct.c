@@ -11,7 +11,7 @@
 #include "verify.h"
 
 static int
-acct_mgmt(pam_handle_t *pamh, uint32_t ctrl)
+acct_mgmt(pam_handle_t *pamh, struct config_t *cfg)
 {
   pwa_expire_flag_t expire_state;
   const void *void_str;
@@ -45,7 +45,7 @@ acct_mgmt(pam_handle_t *pamh, uint32_t ctrl)
 	  _cleanup_free_ char *buf = NULL;
 	  long bufsize = 0;
 
-	  if (!(ctrl & ARG_QUIET))
+	  if (!(cfg->ctrl & ARG_QUIET))
 	    pam_syslog(pamh, LOG_NOTICE, "pwaccessd not running, using internal fallback code");
 
 	  r = alloc_getxxnam_buffer(pamh, &buf, &bufsize);
@@ -115,7 +115,7 @@ acct_mgmt(pam_handle_t *pamh, uint32_t ctrl)
       pam_syslog(pamh, LOG_INFO,
 		 "password for user %s will expire in %ld days",
 		 user, daysleft);
-      if (!(ctrl & ARG_QUIET))
+      if (!(cfg->ctrl & ARG_QUIET))
 	pam_info(pamh, "Warning: your password will expire in %ld %s.",
 		 daysleft, (daysleft == 1)?"day":"days");
     }
@@ -128,22 +128,33 @@ pam_sm_acct_mgmt(pam_handle_t *pamh, int flags,
 		 int argc, const char **argv)
 {
   struct timespec start, stop;
-  uint32_t ctrl = parse_args(pamh, flags, argc, argv, NULL);
+  struct config_t cfg;
+  int r;
 
-  if (ctrl & ARG_DEBUG)
+  r = parse_args(pamh, flags, argc, argv, &cfg);
+  if (r < 0)
+    {
+      /* XXX new function with errno -> PAM return value mapping */
+      if (r == -ENOMEM)
+	return PAM_BUF_ERR;
+      else
+	return PAM_SERVICE_ERR;
+    }
+
+  if (cfg.ctrl & ARG_DEBUG)
     {
       clock_gettime(CLOCK_MONOTONIC, &start);
       pam_syslog(pamh, LOG_DEBUG, "acct_mgmt called");
     }
 
-  int retval = acct_mgmt(pamh, ctrl);
+  r = acct_mgmt(pamh, &cfg);
 
-  if (ctrl & ARG_DEBUG)
+  if (cfg.ctrl & ARG_DEBUG)
     {
       clock_gettime(CLOCK_MONOTONIC, &stop);
 
-      log_runtime_ms(pamh, "acct_mgmt", retval, start, stop);
+      log_runtime_ms(pamh, "acct_mgmt", r, start, stop);
     }
 
-  return retval;
+  return r;
 }
