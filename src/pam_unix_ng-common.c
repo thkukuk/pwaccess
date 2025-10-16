@@ -9,6 +9,7 @@
 #include "pwaccess.h"
 #include "pam_unix_ng.h"
 #include "verify.h"
+#include "no_new_privs.h"
 
 int
 parse_args(pam_handle_t *pamh, int flags, int argc, const char **argv,
@@ -229,10 +230,10 @@ log_authentication_failure(pam_handle_t *pamh, const char *user)
 	     "authentication failure; "
 	     "logname=%s uid=%d euid=%d "
 	     "tty=%s ruser=%s rhost=%s "
-	     "user=%s",
+	     "user=%s%s",
 	     strna(login_name), getuid(), geteuid(),
 	     strna(tty), strna(ruser), strna(rhost),
-	     user);
+	     user, no_new_privs_enabled()?", no_new_privs=1":"");
 }
 
 void
