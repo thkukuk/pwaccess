@@ -164,22 +164,26 @@ unix_chauthtok(pam_handle_t *pamh, int flags, struct config_t *cfg)
   _cleanup_(struct_shadow_freep) struct spwd *sp = NULL;
   bool i_am_root = i_am_root_detect(flags);
   const char *only_expired_authtok = "";
+  const char *run_as_root = "";
   const char *user = NULL;
   int r;
 
+  if (i_am_root)
+    run_as_root = ", root";
+
   /* Validate flags */
   if (flags & PAM_CHANGE_EXPIRED_AUTHTOK)
-    only_expired_authtok = ",only expired authtok";
+    only_expired_authtok = ", only expired authtok";
 
   if (flags & PAM_PRELIM_CHECK)
     {
       if (cfg->ctrl & ARG_DEBUG)
-	pam_syslog(pamh, LOG_DEBUG, "chauthtok called (prelim check%s)", only_expired_authtok);
+	pam_syslog(pamh, LOG_DEBUG, "chauthtok called (prelim check%s%s)", only_expired_authtok, run_as_root);
     }
   else if (flags & PAM_UPDATE_AUTHTOK)
     {
       if (cfg->ctrl & ARG_DEBUG)
-	pam_syslog(pamh, LOG_DEBUG, "chauthtok called (update authtok%s)", only_expired_authtok);
+	pam_syslog(pamh, LOG_DEBUG, "chauthtok called (update authtok%s%s)", only_expired_authtok, run_as_root);
     }
   else
     {
@@ -339,8 +343,7 @@ unix_chauthtok(pam_handle_t *pamh, int flags, struct config_t *cfg)
 	      pam_error(pamh, "%s.", no_new_pass_msg);
 	      r = PAM_AUTHTOK_ERR;
 	    }
-
-	  if (strlen(strempty(pass_new)) > PAM_MAX_RESP_SIZE)
+	  else if (strlen(strempty(pass_new)) > PAM_MAX_RESP_SIZE)
 	    {
 	      /* remove new password */
 	      pam_set_item(pamh, PAM_AUTHTOK, NULL);
@@ -349,9 +352,9 @@ unix_chauthtok(pam_handle_t *pamh, int flags, struct config_t *cfg)
 	      pam_error(pamh, "You must choose a shorter password.");
 	      r = PAM_AUTHTOK_ERR;
 	    }
-	  else if (!i_am_root)
+	  else if (strlen(strempty(pass_new)) < (size_t)cfg->minlen)
 	    {
-	      if (strlen(pass_new) < (size_t)cfg->minlen)
+	      if (!i_am_root)
 		{
 		  /* remove new password */
 		  pam_set_item(pamh, PAM_AUTHTOK, NULL);
