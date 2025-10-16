@@ -8,6 +8,7 @@
 #include "basics.h"
 #include "pam_unix_ng.h"
 #include "pwaccess.h"
+#include "verify.h"
 
 int
 pam_sm_open_session(pam_handle_t *pamh, int flags,
@@ -26,13 +27,7 @@ pam_sm_open_session(pam_handle_t *pamh, int flags,
 
   r = parse_args(pamh, flags, argc, argv, &cfg);
   if (r < 0)
-    {
-      /* XXX new function with errno -> PAM return value mapping */
-      if (r == -ENOMEM)
-        return PAM_BUF_ERR;
-      else
-        return PAM_SERVICE_ERR;
-    }
+    return errno_to_pam(r);
 
   if (cfg.ctrl & ARG_DEBUG)
     pam_syslog(pamh, LOG_DEBUG, "open_session called");
@@ -62,8 +57,13 @@ pam_sm_open_session(pam_handle_t *pamh, int flags,
     {
       if (r == 0)
 	{
-	  /* XXX error_user_not_found(link, -1, p.name); */
-	  pam_error(pamh, "User not found");
+	  const char *cp;
+
+	  if (!valid_name(user))
+	    cp = "";
+	  else
+	    cp = user;
+	  pam_syslog(pamh, LOG_INFO,  "User '%s' not found", strna(cp));
 	  return PAM_USER_UNKNOWN;
 	}
 

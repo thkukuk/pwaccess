@@ -28,6 +28,7 @@
 
 static int socket_activation = false;
 
+/* XXX sync with valid_name */
 static bool
 no_valid_name(const char *name)
 {

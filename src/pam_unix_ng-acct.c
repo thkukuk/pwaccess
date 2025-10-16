@@ -57,8 +57,13 @@ acct_mgmt(pam_handle_t *pamh, struct config_t *cfg)
 	    {
 	      if (r == 0)
 		{
-		  /* XXX error_user_not_found(link, -1, p.name); */
-		  pam_error(pamh, "User not found");
+		  const char *cp;
+
+		  if (!valid_name(user))
+		    cp = "";
+		  else
+		    cp = user;
+		  pam_syslog(pamh, LOG_INFO, "User '%s' not found", strna(cp));
 		  return PAM_USER_UNKNOWN;
 		}
 

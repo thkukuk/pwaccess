@@ -245,3 +245,19 @@ log_runtime_ms(pam_handle_t *pamh, const char *type, int retval,
 	     "%s finished (%s), executed in %lu milliseconds",
 	     type, pam_strerror(pamh, retval), delta_ms);
 }
+
+int
+errno_to_pam(int e)
+{
+  if (e < 0)
+    e = -e;
+
+  switch(e)
+    {
+    case ENOMEM:
+      return PAM_BUF_ERR;
+    default:
+      break;
+    }
+  return PAM_SERVICE_ERR;
+}
