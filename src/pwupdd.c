@@ -25,6 +25,7 @@
 #include "varlink-service-common.h"
 #include "files.h"
 #include "verify.h"
+#include "no_new_privs.h"
 
 #include "varlink-org.openSUSE.pwupd.h"
 
@@ -599,9 +600,14 @@ vl_method_chauthtok(sd_varlink *link, sd_json_variant *parameters,
   /* Run under the UID of the caller, else pam_unix will not ask for old password */
   if (peer_uid != 0)
     {
-      log_msg(LOG_DEBUG, "Calling setuid(%u)", peer_uid);
-      if (setuid(peer_uid) != 0)
-	return return_internal_error(link, "setuid", errno);
+      if (no_new_privs_enabled())
+	log_msg(LOG_DEBUG, "NoNewPrivs is enabled, running PAM as root");
+      else
+	{
+	  log_msg(LOG_DEBUG, "Calling setuid(%u)", peer_uid);
+	  if (setuid(peer_uid) != 0)
+	    return return_internal_error(link, "setuid", errno);
+	}
     }
 
   r = pthread_create(&pam_thread, NULL, &run_pam_chauthtok, &p);
