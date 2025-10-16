@@ -11,6 +11,7 @@
 #include "pwaccess.h"
 #include "verify.h"
 #include "files.h"
+#include "no_new_privs.h"
 
 #define MAX_PASSWD_TRIES 3
 
@@ -140,12 +141,28 @@ get_local_user_record(pam_handle_t *pamh, const char *user,
   return 0;
 }
 
+static bool
+i_am_root_detect(int flags)
+{
+  bool root = false;
+
+  /* If no_new_privs is enabled, geteuid()/getuid() are pretty useless.
+     Report always that we are not root, so user as in worst case to
+     enter his password more often than necessary. */
+  if (no_new_privs_enabled())
+    root = false;
+  else
+    root = (getuid() == 0 && !(flags & PAM_CHANGE_EXPIRED_AUTHTOK));
+
+  return root;
+}
+
 static int
 unix_chauthtok(pam_handle_t *pamh, int flags, struct config_t *cfg)
 {
   _cleanup_(struct_passwd_freep) struct passwd *pw = NULL;
   _cleanup_(struct_shadow_freep) struct spwd *sp = NULL;
-  bool i_am_root = (getuid() == 0 && !(flags & PAM_CHANGE_EXPIRED_AUTHTOK));
+  bool i_am_root = i_am_root_detect(flags);
   const char *only_expired_authtok = "";
   const char *user = NULL;
   int r;
