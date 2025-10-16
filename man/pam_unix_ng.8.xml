@@ -23,7 +23,7 @@
   <refsect1>
     <title>DESCRIPTION</title>
     <para>
-      This is a standard UNIX authentication PAM module which delegates tasks requiring access to <filename>/etc/shadow</filename> to <citerefentry><refentrytitle>pwaccessd</refentrytitle><manvolnum>8</manvolnum></citerefentry>.
+      This is a standard UNIX authentication PAM module which delegates tasks requiring access to <filename>/etc/shadow</filename> to <citerefentry><refentrytitle>pwaccessd</refentrytitle><manvolnum>8</manvolnum></citerefentry>, which allows to use this module in environments without setuid binaries. If pwaccessd is not running, it tries to read the local files as fallback itself.
     </para>
   </refsect1>
 
@@ -111,7 +111,7 @@
           <para>
 	    The default action is for the module to use the following
 	    prompts when requesting passwords: "New UNIX password: " and
-	    "Retype UNIX password: ". The example word 
+	    "Retype UNIX password: ". The example word
 	    <emphasis>UNIX</emphasis> can be replaced with this option,
 	    by default it is empty.
           </para>
@@ -124,6 +124,34 @@
         <listitem>
           <para>
             Minimal length of new password. The default is 8 characters.
+          </para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term>
+          crypt_prefix=&lt;prefix&gt;
+        </term>
+        <listitem>
+          <para>
+            Prefix of the hash algorithm to use. See
+	    <citerefentry>
+              <refentrytitle>crypt</refentrytitle><manvolnum>5</manvolnum>
+            </citerefentry>.
+	    for valid values.
+          </para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term>
+          crypt_count=&lt;unsigned long&gt;
+        </term>
+        <listitem>
+          <para>
+            This option controls the processing cost of the hash. See
+	    <citerefentry>
+              <refentrytitle>crypt</refentrytitle><manvolnum>5</manvolnum>
+            </citerefentry>.
+	    for valid values.
           </para>
         </listitem>
       </varlistentry>

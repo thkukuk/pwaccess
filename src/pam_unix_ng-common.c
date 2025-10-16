@@ -22,6 +22,8 @@ parse_args(pam_handle_t *pamh, int flags, int argc, const char **argv,
   /* defaults */
   cfg->fail_delay = 2000;
   cfg->minlen = 8;
+  cfg->crypt_prefix = "$y$";
+  cfg->crypt_count = 0;
 
   /* does the application require quiet? */
   if (flags & PAM_SILENT)
@@ -47,6 +49,22 @@ parse_args(pam_handle_t *pamh, int flags, int argc, const char **argv,
 	    pam_syslog(pamh, LOG_ERR, "Cannot parse 'minlen=%s'", cp);
 	  else
 	    cfg->minlen = l;
+	}
+      else if ((cp = startswith(*argv, "crypt_prefix=")) != NULL)
+	{
+	  cfg->crypt_prefix = cp;
+	}
+      else if ((cp = startswith(*argv, "crypt_count=")) != NULL)
+	{
+	  char *ep;
+	  long long ll;
+
+	  ll = strtoll(cp, &ep, 10);
+	  if (ll == LLONG_MAX || ll < 0 || ll > UINT32_MAX ||
+	      cp == ep || *ep != '\0')
+	    pam_syslog(pamh, LOG_ERR, "Cannot parse 'crypt_count=%s'", cp);
+	  else
+	    cfg->crypt_count = ll;
 	}
       else if ((cp = startswith(*argv, "fail_delay=")) != NULL)
 	{

@@ -16,6 +16,8 @@ struct config_t
   uint32_t ctrl;
   uint32_t fail_delay;  /* sleep of milliseconds in case of auth failure */
   int minlen;           /* minimal length of new password */
+  const char *crypt_prefix;  /* see man crypt(5) */
+  unsigned long crypt_count; /* see man crypt(5) */
 };
 
 extern int parse_args(pam_handle_t *pamh, int flags,

@@ -138,7 +138,7 @@ update_passwd_locked(struct passwd *newpw, const char *etcdir)
     {
       if(!gotit && streq(newpw->pw_name, pw->pw_name))
 	{
-	  /* XXX we don't allow to change uid/gid yet */
+	  /* XXX we don't support changing uid/gid yet */
 	  int changed = 0;
 	  if (!isempty(newpw->pw_passwd) && !streq(pw->pw_passwd, newpw->pw_passwd))
 	    {

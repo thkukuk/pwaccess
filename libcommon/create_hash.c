@@ -6,16 +6,14 @@
 #include <assert.h>
 #include <crypt.h>
 #include <syslog.h>
-#include <security/pam_ext.h>
 
 #include "basics.h"
 #include "files.h"
 
 int
-create_hash(pam_handle_t *pamh, const char *password, char **hash)
+create_hash(const char *password, const char *prefix,
+	    unsigned long count, char **hash, char **error)
 {
-  const char *algoid;
-  int rounds = 0; /* XXX */
   /* Strings returned by crypt_gensalt_rn will be no longer than this. */
   char salt[CRYPT_GENSALT_OUTPUT_SIZE];
   _cleanup_free_ struct crypt_data *cdata = NULL;
@@ -24,11 +22,7 @@ create_hash(pam_handle_t *pamh, const char *password, char **hash)
   assert(password);
   assert(hash);
 
-  /* XXX add all the missing ones... */
-  /* sha512 */
-  algoid = "$6$";
-
-  sp = crypt_gensalt_rn(algoid, rounds, NULL, 0, salt, sizeof(salt));
+  sp = crypt_gensalt_rn(prefix, count, NULL, 0, salt, sizeof(salt));
   if (sp == NULL)
     return -errno;
 
@@ -40,14 +34,20 @@ create_hash(pam_handle_t *pamh, const char *password, char **hash)
   if (sp == NULL)
     return -errno;
 
-  if (!strneq(sp, algoid, strlen(algoid)))
+  if (!strneq(sp, prefix, strlen(prefix)))
     {
       /* crypt doesn't know the algorithm, error out */
-      pam_syslog(pamh, LOG_ERR,
-		 "Algorithm '%s' not supported by the crypto backend.",
-		 algoid);
+      int r = -ENOSYS;
+      if (error)
+	{
+	  if (asprintf (error, "Algorithm with prefix '%s' is not supported by the crypto backend.", prefix) < 0)
+	    {
+	      *error = NULL;
+	      r = -ENOMEM;
+	    }
+	}
       explicit_bzero(cdata, sizeof(struct crypt_data));
-      return -ENOSYS;
+      return r;
     }
 
   *hash = strdup(sp);

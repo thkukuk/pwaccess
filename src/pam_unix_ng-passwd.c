@@ -343,14 +343,31 @@ unix_chauthtok(pam_handle_t *pamh, int flags, struct config_t *cfg)
       /* We have an approved password, create new hash and
 	 change the database */
 
+      if (cfg->ctrl | ARG_DEBUG)
+	pam_syslog(pamh, LOG_DEBUG, "Create hash with prefix=%s, count=%lu",
+		   cfg->crypt_prefix, cfg->crypt_count);
+
+      _cleanup_free_ char *error = NULL;
       char *new_hash = NULL;
-      r = create_hash(pamh, pass_new, &new_hash);
+      r = create_hash(pass_new, cfg->crypt_prefix, cfg->crypt_count,
+		      &new_hash, &error);
       if (r < 0 || new_hash == NULL)
 	{
-	  pam_syslog(pamh, LOG_CRIT,
-		     "crypt() failure or out of memory for password");
+	  if (r == -ENOMEM)
+	    {
+	      pam_syslog(pamh, LOG_CRIT, "Out of memory");
+	      return PAM_BUF_ERR;
+	    }
+	  else
+	    {
+	      if (error)
+		pam_syslog(pamh, LOG_ERR,
+			   "crypt() failure: %s", error);
+	      else
+		pam_syslog(pamh, LOG_ERR, "crypt() failure for new password");
+	    }
 	  pass_new = pass_old = NULL; /* cleanup */
-	  return PAM_BUF_ERR;
+	  return PAM_SYSTEM_ERR;
 	}
 
       if (is_shadow(pw))
