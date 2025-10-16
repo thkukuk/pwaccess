@@ -90,13 +90,7 @@ pam_sm_authenticate(pam_handle_t *pamh, int flags,
 
   r = parse_args(pamh, flags, argc, argv, &cfg);
   if (r < 0)
-    {
-      /* XXX new function with errno -> PAM return value mapping */
-      if (r == -ENOMEM)
-	return PAM_BUF_ERR;
-      else
-	return PAM_SERVICE_ERR;
-    }
+    return errno_to_pam(r);
 
   if (cfg.ctrl & ARG_DEBUG)
     {
@@ -125,13 +119,7 @@ pam_sm_setcred(pam_handle_t *pamh, int flags,
 
   r = parse_args(pamh, flags, argc, argv, &cfg);
   if (r < 0)
-    {
-      /* XXX new function with errno -> PAM return value mapping */
-      if (r == -ENOMEM)
-	return PAM_BUF_ERR;
-      else
-	return PAM_SERVICE_ERR;
-    }
+    return errno_to_pam(r);
 
   if (cfg.ctrl & ARG_DEBUG)
     pam_syslog(pamh, LOG_DEBUG, "setcred called");

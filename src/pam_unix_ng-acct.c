@@ -138,13 +138,7 @@ pam_sm_acct_mgmt(pam_handle_t *pamh, int flags,
 
   r = parse_args(pamh, flags, argc, argv, &cfg);
   if (r < 0)
-    {
-      /* XXX new function with errno -> PAM return value mapping */
-      if (r == -ENOMEM)
-	return PAM_BUF_ERR;
-      else
-	return PAM_SERVICE_ERR;
-    }
+    return errno_to_pam(r);
 
   if (cfg.ctrl & ARG_DEBUG)
     {

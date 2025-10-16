@@ -410,13 +410,7 @@ pam_sm_chauthtok(pam_handle_t *pamh, int flags,
 
   r = parse_args(pamh, flags, argc, argv, &cfg);
   if (r < 0)
-    {
-      /* XXX new function with errno -> PAM return value mapping */
-      if (r == -ENOMEM)
-        return PAM_BUF_ERR;
-      else
-        return PAM_SERVICE_ERR;
-    }
+    return errno_to_pam(r);
 
   if (cfg.ctrl & ARG_DEBUG)
     {
@@ -424,14 +418,14 @@ pam_sm_chauthtok(pam_handle_t *pamh, int flags,
       pam_syslog(pamh, LOG_DEBUG, "chauthtok called");
     }
 
-  int retval = unix_chauthtok(pamh, flags, &cfg);
+  r = unix_chauthtok(pamh, flags, &cfg);
 
   if (cfg.ctrl & ARG_DEBUG)
     {
       clock_gettime(CLOCK_MONOTONIC, &stop);
 
-      log_runtime_ms(pamh, "chauthtok", retval, start, stop);
+      log_runtime_ms(pamh, "chauthtok", r, start, stop);
     }
 
-  return retval;
+  return r;
 }
