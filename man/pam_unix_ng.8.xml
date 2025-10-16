@@ -119,7 +119,7 @@
       </varlistentry>
       <varlistentry>
         <term>
-          minlen=&lt;int&gt;
+          minlen=&lt;number&gt;
         </term>
         <listitem>
           <para>
@@ -143,7 +143,7 @@
       </varlistentry>
       <varlistentry>
         <term>
-          crypt_count=&lt;unsigned long&gt;
+          crypt_count=&lt;number&gt;
         </term>
         <listitem>
           <para>
@@ -198,8 +198,7 @@
           <term>PAM_SERVICE_ERR</term>
           <listitem>
             <para>
-	      Internal service module error. This includes error reading
-              from or writing to the database.
+	      Internal service module error.
             </para>
           </listitem>
         </varlistentry>
@@ -238,22 +237,10 @@
   </refsect1>
 
   <refsect1>
-    <title>FILES</title>
-    <variablelist>
-      <varlistentry>
-        <term>/var/lib/wtmpdb/wtmp.db</term>
-        <listitem>
-          <para>Wtmpdb logging database file</para>
-        </listitem>
-      </varlistentry>
-    </variablelist>
-  </refsect1>
-
-  <refsect1>
     <title>SEE ALSO</title>
     <para>
       <citerefentry>
-	<refentrytitle>wtmpdb</refentrytitle><manvolnum>8</manvolnum>
+	<refentrytitle>pwaccessd</refentrytitle><manvolnum>8</manvolnum>
       </citerefentry>,
       <citerefentry>
 	<refentrytitle>pam.conf</refentrytitle><manvolnum>5</manvolnum>
