@@ -599,7 +599,7 @@ vl_method_chauthtok(sd_varlink *link, sd_json_variant *parameters,
   /* Run under the UID of the caller, else pam_unix will not ask for old password */
   if (peer_uid != 0)
     {
-      log_msg(LOG_DEBUG, "Callilng setuid(%u)", peer_uid);
+      log_msg(LOG_DEBUG, "Calling setuid(%u)", peer_uid);
       if (setuid(peer_uid) != 0)
 	return return_internal_error(link, "setuid", errno);
     }
