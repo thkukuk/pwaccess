@@ -2,13 +2,12 @@
 
 #include "config.h"
 
+#include <errno.h>
 #include <ctype.h>
 #include <stdio.h>
 #include <string.h>
 
 #include "get_value.h"
-
-/* XXX check for failed strdup */
 
 /* prompt the user with the name of the field being changed and the
    current value.
@@ -47,6 +46,8 @@ get_value(const char *def, const char *prompt, char **input)
       if(strcasecmp("none", buf) == 0)
 	{
 	  *input = strdup("");
+	  if (*input == NULL)
+	    return -ENOMEM;
 	  return 0;
 	}
 
@@ -65,22 +66,12 @@ get_value(const char *def, const char *prompt, char **input)
       while (*cp && isspace(*cp))
 	cp++;
       *input = strdup(cp);
+      if (*input == NULL)
+	return -ENOMEM;
       return 0;
     }
   *input = strdup(def?:"");
+  if (*input == NULL)
+    return -ENOMEM;
   return 0;
 }
-
-#ifdef TEST
-int
-main (int argc, char **argv)
-{
-  char *cp;
-
-  cp = get_value ("test", "t1");
-
-  printf("cp=\"%s\"\n", cp);
-
-  return 0;
-}
-#endif

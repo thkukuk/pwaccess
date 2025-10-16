@@ -101,7 +101,6 @@ pkg.generate(
 
 libcommon_c = files('libcommon/create_hash.c',
                     'libcommon/files.c',
-                    'libcommon/get_value.c',
                     'libcommon/mkdir_p.c',
                     'libcommon/string-util-fundamental.c',
                     'libcommon/verify.c')
@@ -135,7 +134,7 @@ executable('pwupdd',
            install : true)
 
 executable('chsh', 'src/chsh.c', 'src/varlink-client-common.c',
-           'libcommon/get_value.c',
+           'src/get_value.c',
            include_directories : inc,
            dependencies : [libsystemd, libpam, libpam_misc, libeconf],
            install : true)
