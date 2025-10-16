@@ -123,7 +123,7 @@ update_passwd_locked(struct passwd *newpw, const char *etcdir)
     return -errno;
 
 #if 0 /* XXX */
-  r = copy_xattr(pamh, passwd_orig, passwd_tmp);
+  r = copy_xattr(passwd_orig, passwd_tmp);
   if (r > 0)
     return -r;
 #endif
@@ -320,7 +320,7 @@ update_shadow_locked(struct spwd *newsp, const char *etcdir)
     return -errno;
 
 #if 0 /* XXX */
-  r = copy_xattr(pamh, shadow_orig, shadow_tmp);
+  r = copy_xattr(shadow_orig, shadow_tmp);
   if (r > 0)
     return -r;
 #endif

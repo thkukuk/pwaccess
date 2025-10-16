@@ -69,7 +69,6 @@ alloc_getxxnam_buffer(pam_handle_t *pamh, char **buf, long *size)
   if (*buf == NULL)
     {
       pam_syslog(pamh, LOG_CRIT, "Out of memory!");
-      pam_error(pamh, "Out of memory!");
       return PAM_BUF_ERR;
     }
 

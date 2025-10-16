@@ -25,7 +25,7 @@ conf.set_quoted('_VARLINK_PWUPD_SOCKET', '/run/pwaccess/pwupd-socket')
 
 cc = meson.get_compiler('c')
 pkg = import('pkgconfig')
-inc = include_directories(['include'])
+inc = include_directories(['include','libcommon'])
 
 add_project_arguments(['-D_GNU_SOURCE=1',
 		       '-DXTSTRINGDEFINES',
@@ -99,15 +99,29 @@ pkg.generate(
   version : meson.project_version(),
 )
 
+libcommon_c = files('libcommon/create_hash.c',
+                    'libcommon/files.c',
+                    'libcommon/get_value.c',
+                    'libcommon/mkdir_p.c',
+                    'libcommon/string-util-fundamental.c',
+                    'libcommon/verify.c')
+
+libcommon = static_library(
+  'libcommon',
+  libcommon_c,
+  include_directories : inc,
+  install : false
+)
+
 pwaccessd_c = ['src/pwaccessd.c', 'src/varlink-org.openSUSE.pwaccess.c',
-               'src/mkdir_p.c', 'src/verify.c', 'src/varlink-service-common.c']
+	       'src/varlink-service-common.c']
 pwupdd_c = ['src/pwupdd.c', 'src/varlink-org.openSUSE.pwupd.c',
-            'src/mkdir_p.c', 'src/varlink-service-common.c', 'src/files.c',
-            'src/string-util-fundamental.c', 'src/verify.c']
+            'src/varlink-service-common.c']
 
 executable('pwaccessd',
            pwaccessd_c,
            include_directories : inc,
+	   link_with : [libcommon],
            dependencies : [libsystemd, libcrypt],
            install_dir : libexecdir,
            install : true)
@@ -115,12 +129,13 @@ executable('pwaccessd',
 executable('pwupdd',
            pwupdd_c,
            include_directories : inc,
-           dependencies : [libpam, libsystemd, libeconf, libselinux],
+	   link_with : [libcommon],
+	   dependencies : [libpam, libsystemd, libeconf, libselinux],
            install_dir : libexecdir,
            install : true)
 
-executable('chsh', 'src/chsh.c', 'src/varlink-client-common.c', 
-           'src/get_value.c',
+executable('chsh', 'src/chsh.c', 'src/varlink-client-common.c',
+           'libcommon/get_value.c',
            include_directories : inc,
            dependencies : [libsystemd, libpam, libpam_misc, libeconf],
            install : true)
@@ -130,10 +145,8 @@ executable('passwd', 'src/passwd.c', 'src/varlink-client-common.c',
            install : true)
 
 pam_unix_ng_c = files('src/pam_unix_ng-common.c', 'src/pam_unix_ng-session.c',
-                      'src/pam_unix_ng-acct.c', 'src/pam_unix_ng-auth.c', 
-                      'src/pam_unix_ng-passwd.c', 'src/verify.c',
-                      'src/get_local_user_record.c', 'src/files.c',
-                      'src/string-util-fundamental.c', 'src/create_hash.c')
+                      'src/pam_unix_ng-acct.c', 'src/pam_unix_ng-auth.c',
+                      'src/pam_unix_ng-passwd.c')
 pam_unix_ng_map = 'src/pam_unix_ng.map'
 pam_unix_ng_map_version = '-Wl,--version-script,@0@/@1@'.format(meson.current_source_dir(), pam_unix_ng_map)
 
@@ -144,7 +157,7 @@ pam_unix_ng = shared_library(
   include_directories : inc,
   link_args : ['-shared', pam_unix_ng_map_version],
   link_depends : pam_unix_ng_map,
-  link_with : libpwaccess,
+  link_with : [libpwaccess, libcommon],
   dependencies : [libcrypt, libpam, libselinux],
   install : true,
   install_dir : pamlibdir
