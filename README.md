@@ -4,15 +4,6 @@ The pwaccess package contains a library and a systemd socket activated service, 
 
 ## pam_unix_ng.so
 
-The `pam_unix_ng.so` PAM module uses `pwaccessd` as backend for authentication and to check if the account is expired. It is currently not possible to change the password.
+The `pam_unix_ng.so` PAM module uses `pwaccessd` as backend for authentication and to check if the account is expired. 
+Changing the password is only possible if run as root, no varlink call for this. Use `passwd` from this package instead.
 If `pwaccessd` is not running, it tries authentication and account expiration itself as fallback.
-
-If there should be a delay after a failed authentication try, the `pam_faildelay.so` module should be added to the PAM stack.
-
-Example:
-```
-auth optional pam_faildelay.so delay=2000000
-auth required pam_unix_ng.so   nullok try_first_pass
-```
-
-

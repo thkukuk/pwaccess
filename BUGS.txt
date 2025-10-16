@@ -1,0 +1,5 @@
+- chsh: Invalid shell for /bin/sh
+- passwd: ^D does not abort 3 retries, need to differentiate between abort and empty password
+- pam_unix_ng(chauthtok): geteuid() check doesn't work anymore after setuid() of pwupd, test for nosetprivs like sudo
+- pam_unix_ng: Add "no_root" option so that it never assumes it's called by root?
+- pwupd: use different PAM configs if called by root or not.
