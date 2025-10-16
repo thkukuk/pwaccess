@@ -119,6 +119,16 @@
       </varlistentry>
       <varlistentry>
         <term>
+          minlen=&lt;int&gt;
+        </term>
+        <listitem>
+          <para>
+            Minimal length of new password. The default is 8 characters.
+          </para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term>
           fail_delay=&lt;milliseconds&gt;
         </term>
         <listitem>
