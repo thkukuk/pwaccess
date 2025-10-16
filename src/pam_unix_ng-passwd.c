@@ -221,6 +221,14 @@ unix_chauthtok(pam_handle_t *pamh, int flags, struct config_t *cfg)
       bool authenticated = false;
       _cleanup_free_ char *error = NULL;
 
+      /* instruct user what is happening */
+      if (!(cfg->ctrl & ARG_QUIET))
+	{
+	  r = pam_info(pamh, "Changing password for %s.", user);
+	  if (r != PAM_SUCCESS)
+	    return r;
+	}
+
       /* If this is being run by root and we change a local password,
          we don't need to get the old password. The test for
          PAM_CHANGE_EXPIRED_AUTHTOK is here, because login runs as
@@ -232,15 +240,12 @@ unix_chauthtok(pam_handle_t *pamh, int flags, struct config_t *cfg)
 	  return PAM_SUCCESS;
         }
 
-      /* XXX if (_unix_blankpasswd(pamh, cfg->ctrl, user))
-	 return PAM_SUCCESS; */
-
-      /* instruct user what is happening */
-      if (!(cfg->ctrl & ARG_QUIET))
+      /* don't ask for the old password if it is empty */
+      if (is_blank_password(pw, sp))
 	{
-	  r = pam_info(pamh, "Changing password for %s.", user);
-	  if (r != PAM_SUCCESS)
-	    return r;
+	  if (cfg->ctrl & ARG_DEBUG)
+	    pam_syslog(pamh, LOG_DEBUG, "Old password is empty, skip");
+	  return PAM_SUCCESS;
 	}
 
       r = pam_get_authtok(pamh, PAM_OLDAUTHTOK, &pass_old, NULL);
@@ -309,8 +314,9 @@ unix_chauthtok(pam_handle_t *pamh, int flags, struct config_t *cfg)
 
 	  if (isempty(pass_new) || (pass_old && streq(pass_new, pass_old)))
 	    {
-	      /* remove new password for other modules */
+	      /* remove new password */
 	      pam_set_item(pamh, PAM_AUTHTOK, NULL);
+	      pass_new = NULL;
 	      if (cfg->ctrl & ARG_DEBUG)
 		pam_syslog(pamh, LOG_DEBUG, "%s", no_new_pass_msg);
 	      pam_error(pamh, "%s.", no_new_pass_msg);
@@ -319,6 +325,9 @@ unix_chauthtok(pam_handle_t *pamh, int flags, struct config_t *cfg)
 
 	  if (strlen(strempty(pass_new)) > PAM_MAX_RESP_SIZE)
 	    {
+	      /* remove new password */
+	      pam_set_item(pamh, PAM_AUTHTOK, NULL);
+	      pass_new = NULL;
 	      pam_syslog(pamh, LOG_NOTICE, "supplied password to long");
 	      pam_error(pamh, "You must choose a shorter password.");
 	      r = PAM_AUTHTOK_ERR;
@@ -327,6 +336,9 @@ unix_chauthtok(pam_handle_t *pamh, int flags, struct config_t *cfg)
 	    {
 	      if (strlen(pass_new) < (size_t)cfg->minlen)
 		{
+		  /* remove new password */
+		  pam_set_item(pamh, PAM_AUTHTOK, NULL);
+		  pass_new = NULL;
 		  pam_syslog(pamh, LOG_NOTICE, "supplied password too short");
                   pam_error(pamh, "You must choose a longer password.");
 		  r = PAM_AUTHTOK_ERR;

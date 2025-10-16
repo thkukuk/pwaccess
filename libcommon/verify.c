@@ -40,7 +40,7 @@ valid_name(const char *name)
       ++name;
     }
 
-  return true; 
+  return true;
 }
 
 bool
@@ -191,4 +191,24 @@ verify_password(const char *hash, const char *p, bool nullok)
     return VERIFY_OK;
 
   return VERIFY_FAILED;
+}
+
+bool
+is_blank_password(const struct passwd *pw, const struct spwd *sp)
+{
+  bool is_blank = false;
+
+  assert(pw);
+
+  if (is_shadow(pw))
+    {
+      if (!sp)
+        is_blank = false;
+      else
+	is_blank = (strlen(strempty(sp->sp_pwdp)) == 0);
+    }
+  else
+    is_blank = (strlen(strempty(pw->pw_passwd)) == 0);
+
+  return is_blank;
 }
