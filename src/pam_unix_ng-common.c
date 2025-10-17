@@ -214,13 +214,11 @@ authenticate_user(pam_handle_t *pamh, uint32_t ctrl,
 void
 log_authentication_failure(pam_handle_t *pamh, const char *user)
 {
-  const void *service = NULL;
   const void *ruser = NULL;
   const void *rhost = NULL;
   const void *tty = NULL;
   const char *login_name;
 
-  pam_get_item(pamh, PAM_SERVICE, &service);
   pam_get_item(pamh, PAM_RUSER, &ruser);
   pam_get_item(pamh, PAM_RHOST, &rhost);
   pam_get_item(pamh, PAM_TTY, &tty);
