@@ -253,7 +253,7 @@ run_pam_auth(void *arg)
 }
 
 /* XXX move all code access /etc/shells into one file */
-static int
+static bool
 is_known_shell(const char *shell)
 {
   _cleanup_(econf_freeFilep) econf_file *key_file = NULL;
@@ -272,7 +272,7 @@ is_known_shell(const char *shell)
     {
       log_msg(LOG_ERR, "Cannot parse shell files: %s",
               econf_errString(error));
-      return 1;
+      return false;
     }
 
   error = econf_getKeys(key_file, NULL, &size, &keys);
@@ -280,14 +280,14 @@ is_known_shell(const char *shell)
     {
       log_msg(LOG_ERR, "Cannot evaluate entries in shell files: %s",
               econf_errString(error));
-      return 1;
+      return false;
     }
 
   for (size_t i = 0; i < size; i++)
     if (streq(keys[i], shell))
-	return 0;
+	return true;
 
-  return 1;
+  return false;
 }
 
 /* If the shell is completely invalid, print an error and
