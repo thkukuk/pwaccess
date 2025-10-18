@@ -226,7 +226,7 @@ log_authentication_failure(pam_handle_t *pamh, const char *user)
 
   pam_syslog(pamh, LOG_NOTICE,
 	     "authentication failure; "
-	     "logname=%s uid=%d euid=%d "
+	     "logname=%s uid=%u euid=%u "
 	     "tty=%s ruser=%s rhost=%s "
 	     "user=%s%s",
 	     strna(login_name), getuid(), geteuid(),
