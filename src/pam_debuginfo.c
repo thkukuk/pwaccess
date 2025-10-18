@@ -72,6 +72,14 @@ pam_sm_chauthtok(pam_handle_t *pamh, int flags,
 }
 
 int
+pam_sm_open_session(pam_handle_t *pamh, int flags,
+                    int argc _unused_, const char **argv _unused_)
+{
+  log_debug_info(pamh, "session(open)", flags);
+  return PAM_IGNORE;
+}
+
+int
 pam_sm_close_session(pam_handle_t *pamh, int flags,
 		     int argc _unused_, const char **argv _unused_)
 {
