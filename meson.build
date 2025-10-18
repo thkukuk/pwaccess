@@ -163,6 +163,20 @@ pam_unix_ng = shared_library(
   install_dir : pamlibdir
 )
 
+pam_debuginfo_c = ['src/pam_debuginfo.c', 'libcommon/no_new_privs.c']
+
+pam_debuginfo = shared_library(
+  'pam_debuginfo',
+  pam_debuginfo_c,
+  name_prefix : '',
+  include_directories : inc,
+  link_args : ['-shared', pam_unix_ng_map_version],
+  link_depends : pam_unix_ng_map,
+  dependencies : [libpam],
+  install : true,
+  install_dir : pamlibdir
+)
+
 # create config.h
 subdir('include')
 
