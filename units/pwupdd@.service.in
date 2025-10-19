@@ -3,4 +3,4 @@ Description=Daemon to update passwd and shadow entries
 After=local-fs.target
 
 [Service]
-ExecStart=/usr/libexec/pwupdd -d
+ExecStart=@LIBEXECDIR@/pwupdd -d
