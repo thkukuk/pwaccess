@@ -6,6 +6,7 @@
 #include <syslog.h>
 #include <security/pam_modules.h>
 #include <security/pam_ext.h>
+#include <time.h>
 
 #define ARG_DEBUG	1 /* send info to syslog(3) */
 #define ARG_QUIET	2 /* keep quiet about things */
