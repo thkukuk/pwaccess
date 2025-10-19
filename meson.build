@@ -107,7 +107,7 @@ libcommon_c = files('libcommon/create_hash.c',
                     'libcommon/verify.c')
 
 libcommon = static_library(
-  'libcommon',
+  'common',
   libcommon_c,
   include_directories : inc,
   install : false
