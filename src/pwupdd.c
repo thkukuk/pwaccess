@@ -80,6 +80,10 @@ struct parameters {
   char *name;
   char *shell;
   char *response;
+  /* run_as_user:
+     0: let PAM module decide as what we run
+     1: PAM modules should assume we run as user even if geteuid() returns 0 */
+  int run_as_user;
   sd_varlink *link;
 };
 
@@ -186,6 +190,7 @@ run_pam_auth(void *arg)
     .name = param->name,
     .shell = param->shell,
     .link = param->link,
+    .run_as_user = param->run_as_user,
   };
   const struct pam_conv conv = {
     varlink_conv,
@@ -201,6 +206,17 @@ run_pam_auth(void *arg)
 	      p.name, pam_strerror(NULL, r));
       return broadcast_and_return(r);
     }
+
+  if (p.run_as_user)
+    {
+      r = pam_putenv(pamh, "PAM_NO_ROOT=1");
+      if (r != PAM_SUCCESS)
+	{
+	  log_msg(LOG_ERR, "pam_putenv(\"PAM_NO_ROOT=1\") failed: %s", pam_strerror(NULL, r));
+	  return broadcast_and_return(r);
+	}
+    }
+
   r = pam_authenticate(pamh, 0);
   if (r != PAM_SUCCESS)
     {
@@ -371,6 +387,7 @@ vl_method_chsh(sd_varlink *link, sd_json_variant *parameters,
     .name = NULL,
     .shell = NULL,
     .link = link,
+    .run_as_user = 0,
   };
   static const sd_json_dispatch_field dispatch_table[] = {
     { "userName", SD_JSON_VARIANT_STRING, sd_json_dispatch_string,  offsetof(struct parameters, name),  SD_JSON_MANDATORY},
@@ -440,6 +457,10 @@ vl_method_chsh(sd_varlink *link, sd_json_variant *parameters,
       /* XXX send msg as informal text */
     }
 
+  /* Tell PAM modules to not run as "root" */
+  if (peer_uid != 0 && no_new_privs_enabled())
+    p.run_as_user = 1;
+
   r = pthread_create(&pam_thread, NULL, &run_pam_auth, &p);
   if (r != 0)
     return return_internal_error(link, "pthread_create", r);
@@ -492,6 +513,7 @@ run_pam_chauthtok(void *arg)
     .name = param->name,
     .shell = param->shell,
     .link = param->link,
+    .run_as_user = param->run_as_user,
   };
   const struct pam_conv conv = {
     varlink_conv,
@@ -501,7 +523,7 @@ run_pam_chauthtok(void *arg)
   intptr_t r;
   int flags = 0;
 
-#if 0
+#if 0 /* XXX */
   if (silent)
     flags |= PAM_SILENT;
   if (change_expired)
@@ -515,6 +537,17 @@ run_pam_chauthtok(void *arg)
 	      p.name, pam_strerror(NULL, r));
       return broadcast_and_return(r);
     }
+
+  if (p.run_as_user)
+    {
+      r = pam_putenv(pamh, "PAM_NO_ROOT=1");
+      if (r != PAM_SUCCESS)
+	{
+	  log_msg(LOG_ERR, "pam_putenv(\"PAM_NO_ROOT=1\") failed: %s", pam_strerror(NULL, r));
+	  return broadcast_and_return(r);
+	}
+    }
+
   r = pam_chauthtok(pamh, flags);
   if (r != PAM_SUCCESS)
     {
@@ -543,6 +576,7 @@ vl_method_chauthtok(sd_varlink *link, sd_json_variant *parameters,
     .name = NULL,
     .shell = NULL,
     .link = link,
+    .run_as_user = 0,
   };
   static const sd_json_dispatch_field dispatch_table[] = {
     { "userName", SD_JSON_VARIANT_STRING, sd_json_dispatch_string,  offsetof(struct parameters, name),  SD_JSON_MANDATORY},
@@ -601,12 +635,15 @@ vl_method_chauthtok(sd_varlink *link, sd_json_variant *parameters,
   if (peer_uid != 0)
     {
       if (no_new_privs_enabled())
-	log_msg(LOG_DEBUG, "NoNewPrivs is enabled, running PAM as root");
+	{
+	  log_msg(LOG_DEBUG, "NoNewPrivs is enabled, running PAM stack as root");
+	  p.run_as_user = 1;
+	}
       else
 	{
-	  log_msg(LOG_DEBUG, "Calling setuid(%u)", peer_uid);
-	  if (setuid(peer_uid) != 0)
-	    return return_internal_error(link, "setuid", errno);
+	  log_msg(LOG_DEBUG, "Calling setresuid(%u,0,0)", peer_uid);
+	  if (setresuid(peer_uid,0,0) != 0)
+	    return return_internal_error(link, "setresuid", errno);
 	}
     }
 
@@ -654,6 +691,7 @@ vl_method_conv(sd_varlink *link, sd_json_variant *parameters,
     .shell = NULL,
     .response = NULL,
     .link = link,
+    .run_as_user = 0,
   };
   static const sd_json_dispatch_field dispatch_table[] = {
     { "response", SD_JSON_VARIANT_STRING, sd_json_dispatch_string,  offsetof(struct parameters, response),  SD_JSON_NULLABLE},

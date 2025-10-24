@@ -142,9 +142,16 @@ get_local_user_record(pam_handle_t *pamh, const char *user,
 }
 
 static bool
-i_am_root_detect(int flags)
+i_am_root_detect(pam_handle_t *pamh, int flags)
 {
   bool root = false;
+
+  /* If the PAM_NO_ROOT=1 pam environment variable is set,
+     use the rules for normal users, not the relaxed ones
+     for root. */
+  const char *no_root_env = pam_getenv(pamh, "PAM_NO_ROOT");
+  if (no_root_env != NULL && streq(no_root_env, "1"))
+    return false;
 
   /* If no_new_privs is enabled, geteuid()/getuid() are pretty useless.
      Report always that we are not root, so user as in worst case to
@@ -162,7 +169,7 @@ unix_chauthtok(pam_handle_t *pamh, int flags, struct config_t *cfg)
 {
   _cleanup_(struct_passwd_freep) struct passwd *pw = NULL;
   _cleanup_(struct_shadow_freep) struct spwd *sp = NULL;
-  bool i_am_root = i_am_root_detect(flags);
+  bool i_am_root = i_am_root_detect(pamh, flags);
   const char *only_expired_authtok = "";
   const char *run_as_root = "";
   const char *user = NULL;
@@ -194,8 +201,9 @@ unix_chauthtok(pam_handle_t *pamh, int flags, struct config_t *cfg)
   /* We must be root to update passwd and shadow. */
   if (geteuid() != 0)
     {
-      const char *no_root = "Calling proces must be root!";
-      pam_syslog(pamh, LOG_ERR, "%s", no_root);
+      const char *no_root = "Calling process must be root!";
+      pam_syslog(pamh, LOG_ERR, "%s (euid=%u,uid=%u)", no_root,
+		 geteuid(), getuid());
       pam_error(pamh, "%s", no_root);
       return PAM_CRED_INSUFFICIENT;
     }
