@@ -656,7 +656,7 @@ vl_method_conv(sd_varlink *link, sd_json_variant *parameters,
     .link = link,
   };
   static const sd_json_dispatch_field dispatch_table[] = {
-    { "response", SD_JSON_VARIANT_STRING, sd_json_dispatch_string,  offsetof(struct parameters, response),  SD_JSON_MANDATORY},
+    { "response", SD_JSON_VARIANT_STRING, sd_json_dispatch_string,  offsetof(struct parameters, response),  SD_JSON_NULLABLE},
     {}
   };
   int r;
@@ -684,7 +684,10 @@ vl_method_conv(sd_varlink *link, sd_json_variant *parameters,
   if (send_v != NULL)
     sd_json_variant_unref(send_v);
   send_v = NULL;
-  answer = strdup(p.response);
+  if (p.response)
+    answer = strdup(p.response);
+  else
+    answer = NULL;
   pthread_cond_broadcast(&cond);
   pthread_mutex_unlock(&mut);
 
@@ -709,10 +712,10 @@ vl_method_conv(sd_varlink *link, sd_json_variant *parameters,
       _cleanup_free_ char *error = NULL;
 
       int64_t t = (int64_t)thread_res;
-      if (asprintf(&error, "PAM authentication failed: %s", pam_strerror(NULL, t)) < 0)
+      if (asprintf(&error, "Password change aborted: %s", pam_strerror(NULL, t)) < 0)
 	error = NULL;
       log_msg(LOG_ERR, "%s", stroom(error));
-      return sd_varlink_errorbo(link, "org.openSUSE.pwupd.AuthenticationFailed",
+      return sd_varlink_errorbo(link, "org.openSUSE.pwupd.PasswordChangeAborted",
 				SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
 				SD_JSON_BUILD_PAIR_STRING("ErrorMsg", stroom(error)));
     }

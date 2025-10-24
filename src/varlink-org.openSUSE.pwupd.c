@@ -17,7 +17,7 @@ static SD_VARLINK_DEFINE_METHOD(
 static SD_VARLINK_DEFINE_METHOD(
 		Conv,
                 SD_VARLINK_FIELD_COMMENT("Response for PAM_PROMPT_ECHO_*."),
-                SD_VARLINK_DEFINE_INPUT(response, SD_VARLINK_STRING, 0));
+                SD_VARLINK_DEFINE_INPUT(response, SD_VARLINK_STRING, SD_VARLINK_NULLABLE));
 
 static SD_VARLINK_DEFINE_METHOD(
 		Quit,
@@ -45,6 +45,7 @@ static SD_VARLINK_DEFINE_ERROR(InvalidParameter);
 static SD_VARLINK_DEFINE_ERROR(InternalError);
 static SD_VARLINK_DEFINE_ERROR(AuthenticationFailed);
 static SD_VARLINK_DEFINE_ERROR(InvalidShell);
+static SD_VARLINK_DEFINE_ERROR(PasswordChangeAborted);
 
 SD_VARLINK_DEFINE_INTERFACE(
                 org_openSUSE_pwupd,
@@ -68,5 +69,7 @@ SD_VARLINK_DEFINE_INTERFACE(
                 &vl_error_InvalidParameter,
 		SD_VARLINK_SYMBOL_COMMENT("Invalid shell"),
                 &vl_error_InvalidShell,
+		SD_VARLINK_SYMBOL_COMMENT("Password change aborted"),
+		&vl_error_PasswordChangeAborted,
 		SD_VARLINK_SYMBOL_COMMENT("Internal Error"),
 		&vl_error_InternalError);

@@ -169,7 +169,7 @@ main(int argc _unused_, char **argv _unused_)
 	  _cleanup_(sd_json_variant_unrefp) sd_json_variant *answer = NULL;
 
 	  r = sd_json_buildo(&answer,
-			     SD_JSON_BUILD_PAIR("response", SD_JSON_BUILD_STRING(strempty(resp->resp))));
+			     SD_JSON_BUILD_PAIR("response", SD_JSON_BUILD_STRING(resp->resp)));
 	  if (r < 0)
 	    {
 	      fprintf(stderr, "Failed to build response list: %s\n", strerror(-r));
