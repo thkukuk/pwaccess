@@ -80,6 +80,7 @@ struct parameters {
   char *name;
   char *shell;
   char *response;
+  int flags;
   /* run_as_user:
      0: let PAM module decide as what we run
      1: PAM modules should assume we run as user even if geteuid() returns 0 */
@@ -189,6 +190,8 @@ run_pam_auth(void *arg)
     .pam_service = param->pam_service,
     .name = param->name,
     .shell = param->shell,
+    .response = NULL,
+    .flags = param->flags,
     .link = param->link,
     .run_as_user = param->run_as_user,
   };
@@ -386,12 +389,15 @@ vl_method_chsh(sd_varlink *link, sd_json_variant *parameters,
     .pam_service = "pwupd-chsh",
     .name = NULL,
     .shell = NULL,
+    .response = NULL,
+    .flags = 0,
     .link = link,
     .run_as_user = 0,
   };
   static const sd_json_dispatch_field dispatch_table[] = {
-    { "userName", SD_JSON_VARIANT_STRING, sd_json_dispatch_string,  offsetof(struct parameters, name),  SD_JSON_MANDATORY},
-    { "shell", SD_JSON_VARIANT_STRING,    sd_json_dispatch_string,  offsetof(struct parameters, shell), SD_JSON_MANDATORY},
+    { "userName", SD_JSON_VARIANT_STRING,  sd_json_dispatch_string, offsetof(struct parameters, name),  SD_JSON_MANDATORY},
+    { "shell",    SD_JSON_VARIANT_STRING,  sd_json_dispatch_string, offsetof(struct parameters, shell), SD_JSON_MANDATORY},
+    { "flags",    SD_JSON_VARIANT_INTEGER, sd_json_dispatch_int,    offsetof(struct parameters, flags), 0},
     {}
   };
   uid_t peer_uid;
@@ -512,6 +518,8 @@ run_pam_chauthtok(void *arg)
     .pam_service = param->pam_service,
     .name = param->name,
     .shell = param->shell,
+    .response = NULL,
+    .flags = param->flags,
     .link = param->link,
     .run_as_user = param->run_as_user,
   };
@@ -521,7 +529,6 @@ run_pam_chauthtok(void *arg)
   };
   pam_handle_t *pamh = NULL;
   intptr_t r;
-  int flags = 0;
 
 #if 0 /* XXX */
   if (silent)
@@ -548,7 +555,8 @@ run_pam_chauthtok(void *arg)
 	}
     }
 
-  r = pam_chauthtok(pamh, flags);
+  log_msg(LOG_DEBUG, "pam_chauthok(pamh, %i)", p.flags);
+  r = pam_chauthtok(pamh, p.flags);
   if (r != PAM_SUCCESS)
     {
       pam_end (pamh, r);
@@ -575,11 +583,14 @@ vl_method_chauthtok(sd_varlink *link, sd_json_variant *parameters,
     .pam_service = "pwupd-passwd",
     .name = NULL,
     .shell = NULL,
+    .response = NULL,
+    .flags = 0,
     .link = link,
     .run_as_user = 0,
   };
   static const sd_json_dispatch_field dispatch_table[] = {
-    { "userName", SD_JSON_VARIANT_STRING, sd_json_dispatch_string,  offsetof(struct parameters, name),  SD_JSON_MANDATORY},
+    { "userName", SD_JSON_VARIANT_STRING,  sd_json_dispatch_string, offsetof(struct parameters, name),  SD_JSON_MANDATORY},
+    { "flags",    SD_JSON_VARIANT_INTEGER, sd_json_dispatch_int,    offsetof(struct parameters, flags), 0},
     {}
   };
   uid_t peer_uid;
@@ -597,7 +608,7 @@ vl_method_chauthtok(sd_varlink *link, sd_json_variant *parameters,
   r = sd_varlink_dispatch(p.link, parameters, dispatch_table, &p);
   if (r < 0)
     {
-      log_msg(LOG_ERR, "chsh request: varlink dispatch failed: %s", strerror(-r));
+      log_msg(LOG_ERR, "chauthtok: varlink dispatch failed: %s", strerror(-r));
       return r;
     }
 
@@ -642,7 +653,7 @@ vl_method_chauthtok(sd_varlink *link, sd_json_variant *parameters,
       else
 	{
 	  log_msg(LOG_DEBUG, "Calling setresuid(%u,0,0)", peer_uid);
-	  if (setresuid(peer_uid,0,0) != 0)
+	  if (setresuid(peer_uid, 0, 0) != 0)
 	    return return_internal_error(link, "setresuid", errno);
 	}
     }
@@ -690,6 +701,7 @@ vl_method_conv(sd_varlink *link, sd_json_variant *parameters,
     .name = NULL,
     .shell = NULL,
     .response = NULL,
+    .flags = 0,
     .link = link,
     .run_as_user = 0,
   };

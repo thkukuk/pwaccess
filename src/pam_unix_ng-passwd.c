@@ -159,6 +159,8 @@ i_am_root_detect(pam_handle_t *pamh, int flags)
   if (no_new_privs_enabled())
     root = false;
   else
+    /* The test for PAM_CHANGE_EXPIRED_AUTHTOK is here, because login
+       runs as root and we need the old password in this case. */
     root = (getuid() == 0 && !(flags & PAM_CHANGE_EXPIRED_AUTHTOK));
 
   return root;
@@ -259,9 +261,7 @@ unix_chauthtok(pam_handle_t *pamh, int flags, struct config_t *cfg)
 	}
 
       /* If this is being run by root and we change a local password,
-         we don't need to get the old password. The test for
-         PAM_CHANGE_EXPIRED_AUTHTOK is here, because login runs as
-         root and we need the old password in this case. */
+         we don't need to get the old password. */
       if (i_am_root)
 	{
 	  if (cfg->ctrl & ARG_DEBUG)
@@ -275,6 +275,20 @@ unix_chauthtok(pam_handle_t *pamh, int flags, struct config_t *cfg)
 	  if (cfg->ctrl & ARG_DEBUG)
 	    pam_syslog(pamh, LOG_DEBUG, "Old password is empty, skip");
 	  return PAM_SUCCESS;
+	}
+
+      bool pwchangeable = true;
+      r = expired_check(sp, NULL, &pwchangeable);
+      if (!pwchangeable && !i_am_root)
+	{
+	  pam_error(pamh, "You must wait longer to change your password.");
+	  return PAM_AUTHTOK_ERR;
+	}
+      pam_syslog(pamh, LOG_DEBUG, "expired_check=%i", r);
+      if (r == PWA_EXPIRED_NO && (flags & PAM_CHANGE_EXPIRED_AUTHTOK))
+	{
+	  pam_error(pamh, "Password not expired");
+	  return PAM_AUTHTOK_ERR;
 	}
 
       r = pam_get_authtok(pamh, PAM_OLDAUTHTOK, &pass_old, NULL);
@@ -295,14 +309,6 @@ unix_chauthtok(pam_handle_t *pamh, int flags, struct config_t *cfg)
 	    return r;
 
 	  return PAM_AUTH_ERR;
-	}
-
-      bool pwchangeable = true;
-      r = expired_check(sp, NULL, &pwchangeable);
-      if (!pwchangeable && !i_am_root)
-	{
-	  pam_error(pamh, "You must wait longer to change your password.");
-	  return PAM_AUTHTOK_ERR;
 	}
     }
   else if (flags & PAM_UPDATE_AUTHTOK)

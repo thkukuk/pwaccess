@@ -12,7 +12,8 @@ static SD_VARLINK_DEFINE_METHOD(
 static SD_VARLINK_DEFINE_METHOD(
                 Chauthtok,
                 SD_VARLINK_FIELD_COMMENT("The account of the user to change the password."),
-                SD_VARLINK_DEFINE_INPUT(userName, SD_VARLINK_STRING, 0));
+                SD_VARLINK_DEFINE_INPUT(userName, SD_VARLINK_STRING, 0),
+		SD_VARLINK_DEFINE_INPUT(flags, SD_VARLINK_INT, SD_VARLINK_NULLABLE));
 
 static SD_VARLINK_DEFINE_METHOD(
 		Conv,
