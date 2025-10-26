@@ -120,7 +120,7 @@ main(int argc, char **argv)
           print_help();
           return 0;
         case 'v':
-          // XXX print_version(program, "2005");
+	  printf("chsh (%s) %s\n", PACKAGE, VERSION);
           return 0;
         case 'u':
           print_usage(stdout);
