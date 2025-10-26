@@ -57,26 +57,25 @@ get_shell_list(void)
 static void
 print_usage(FILE *stream)
 {
-  fprintf(stream, "Usage: chsh [-s shell] [-l] [--help] [--usage] [--version] [user]\n");
+  fprintf(stream, "Usage: chsh [-s shell] [-l] [--help] [--version] [user]\n");
 }
 
 static void
 print_help(void)
 {
-  print_usage(stdout);
   fprintf(stdout, "chsh - change login shell\n\n");
+  print_usage(stdout);
 
   fputs("  -l             List allowed shells from /etc/shells\n", stdout);
   fputs("  -s shell       Use 'shell' as new login shell\n", stdout);
   fputs("  -h, --help     Give this help list\n", stdout);
-  fputs("  -u, --usage    Give a short usage message\n", stdout);
   fputs("  -v, --version  Print program version\n", stdout);
 }
 
 static void
 print_error(void)
 {
-  fprintf (stderr, "Try `chsh --help' or `chsh --usage' for more information.\n");
+  fprintf (stderr, "Try `chsh --help' for more information.\n");
 }
 
 int
@@ -94,12 +93,11 @@ main(int argc, char **argv)
           {"shell",       required_argument, NULL, 's' },
           {"list-shells", no_argument,       NULL, 'l' },
           {"version",     no_argument,       NULL, 'v' },
-          {"usage",       no_argument,       NULL, 'u' },
           {"help",        no_argument,       NULL, 'h' },
           {NULL,          0,                 NULL, '\0'}
         };
 
-      c = getopt_long (argc, argv, "s:lvuh",
+      c = getopt_long (argc, argv, "s:lvh",
                        long_options, &option_index);
       if (c == (-1))
         break;
@@ -121,9 +119,6 @@ main(int argc, char **argv)
           return 0;
         case 'v':
 	  printf("chsh (%s) %s\n", PACKAGE, VERSION);
-          return 0;
-        case 'u':
-          print_usage(stdout);
           return 0;
         default:
           print_error();
