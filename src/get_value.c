@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "basics.h"
 #include "get_value.h"
 
 /* prompt the user with the name of the field being changed and the
@@ -28,7 +29,7 @@ get_value(const char *def, const char *prompt, char **input)
 
   *input = NULL;
 
-  printf("\t%s [%s]: ", prompt, def);
+  printf("\t%s [%s]: ", prompt, strempty(def));
   if (fgets(buf, sizeof(buf), stdin) != buf)
     {
       /* print newline to get defined output.  */
@@ -70,7 +71,7 @@ get_value(const char *def, const char *prompt, char **input)
 	return -ENOMEM;
       return 0;
     }
-  *input = strdup(def?:"");
+  *input = strdup(strempty(def));
   if (*input == NULL)
     return -ENOMEM;
   return 0;
