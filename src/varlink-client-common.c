@@ -66,11 +66,6 @@ pam_message_freep(struct pam_message **var)
 
 struct pam_response *resp = NULL;
 
-struct result {
-  bool success;
-  char *error;
-};
-
 int
 reply_callback(sd_varlink *link _unused_,
 	       sd_json_variant *parameters,
