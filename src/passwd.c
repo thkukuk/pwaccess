@@ -12,10 +12,14 @@
 #include "basics.h"
 #include "pwaccess.h"
 #include "varlink-client-common.h"
+#include "verify.h"
 
 #define USEC_INFINITY ((uint64_t) UINT64_MAX)
 
 #define ARG_DELETE_PASSWORD 1
+#define ARG_EXPIRE          2
+#define ARG_LOCK_PASSWORD   4
+#define ARG_UNLOCK_PASSWORD 8
 
 static void
 print_usage(FILE *stream)
@@ -31,19 +35,22 @@ print_help(void)
   print_usage(stdout);
 
   fputs("  -d, --delete      Delete password\n", stdout);
-  fputs("  -k, --keep-tokens Change only expired passwords\n", stdout);
+  fputs("  -e, --expire      Immediately expire password\n", stdout);
   fputs("  -h, --help        Give this help list\n", stdout);
+  fputs("  -k, --keep-tokens Change only expired passwords\n", stdout);
+  fputs("  -l, --lock        Lock password\n", stdout);
+  fputs("  -u, --unlock      Unlock password\n", stdout);
   fputs("  -v, --version     Print program version\n", stdout);
 }
 
 static void
 print_error(void)
 {
-  fprintf (stderr, "Try `passwd --help' or `passwd --usage' for more information.\n");
+  fprintf (stderr, "Try `passwd --help' for more information.\n");
 }
 
 static int
-modify_account(const char *user, int args)
+modify_account(const char *user, int args, bool quiet)
 {
   _cleanup_(sd_varlink_unrefp) sd_varlink *link = NULL;
   _cleanup_(sd_json_variant_unrefp) sd_json_variant *passwd = NULL;
@@ -79,11 +86,13 @@ modify_account(const char *user, int args)
   if (pw == NULL)
     {
       fprintf(stderr, "ERROR: no password entry found!\n");
-      return 1; /* XXX map to errno */
+      return ENOENT;
     }
 
   if (!complete)
     printf("Warning: couldn't read password field, ignoring.\n");
+
+  int has_change = 0;
 
   if (args & ARG_DELETE_PASSWORD)
     {
@@ -109,7 +118,63 @@ modify_account(const char *user, int args)
 	      return -ENOMEM;
 	    }
 	}
+      has_change = 1;
     }
+  if ((args & ARG_EXPIRE) && sp)
+    {
+      sp->sp_lstchg = 0;
+      has_change = 1;
+    }
+  if (args & ARG_LOCK_PASSWORD)
+    {
+      char *newpw = NULL;
+
+      if (is_shadow(pw))
+	{
+	  if (asprintf(&newpw, "!%s", strempty(sp->sp_pwdp)) < 0)
+	    return -ENOMEM;
+	  free(sp->sp_pwdp);
+	  sp->sp_pwdp = newpw;
+	}
+      else
+	{
+	  if (asprintf(&newpw, "!%s", strempty(pw->pw_passwd)) < 0)
+	    return -ENOMEM;
+	  free(pw->pw_passwd);
+	  pw->pw_passwd = newpw;
+	}
+      has_change = 1;
+    }
+  if (args & ARG_UNLOCK_PASSWORD)
+    {
+      char *newpw = NULL;
+
+      if (is_shadow(pw) && startswith(sp->sp_pwdp, "!"))
+	{
+	  newpw=strdup(&(sp->sp_pwdp)[1]);
+	  if (!newpw)
+	    return -ENOMEM;
+	  free(sp->sp_pwdp);
+	  sp->sp_pwdp = newpw;
+	  has_change = 1;
+	}
+      else if (startswith(pw->pw_passwd, "!"))
+	{
+	  newpw=strdup(&(pw->pw_passwd)[1]);
+	  if (!newpw)
+	    return -ENOMEM;
+	  free(pw->pw_passwd);
+	  pw->pw_passwd = newpw;
+	  has_change = 1;
+	}
+    }
+  if (!has_change)
+    {
+      if (!quiet)
+	printf("Nothing to change.\n");
+      return 0;
+    }
+
   /* XXX unify opening socket */
   r = connect_to_pwupdd(&link, _VARLINK_PWUPD_SOCKET, &error);
   if (r < 0)
@@ -189,6 +254,9 @@ modify_account(const char *user, int args)
       return -EIO;
     }
 
+  if (!quiet)
+    printf("Password changed.\n");
+
   return 0;
 }
 
@@ -198,6 +266,7 @@ main(int argc, char **argv)
   const char *user = NULL;
   int args = 0;
   int pam_flags = 0;
+  bool quiet = false;
 
   while (1)
     {
@@ -206,13 +275,17 @@ main(int argc, char **argv)
       static struct option long_options[] =
         {
 	  {"delete",      no_argument,       NULL, 'd' },
-          {"keep-tokens", no_argument,       NULL, 'k' },
-	  {"version",     no_argument,       NULL, 'v' },
+	  {"expire",      no_argument,       NULL, 'e' },
           {"help",        no_argument,       NULL, 'h' },
+          {"keep-tokens", no_argument,       NULL, 'k' },
+	  {"lock",        no_argument,       NULL, 'l' },
+	  {"quiet",       no_argument,       NULL, 'q' },
+	  {"unlock",      no_argument,       NULL, 'u' },
+	  {"version",     no_argument,       NULL, 'v' },
           {NULL,          0,                 NULL, '\0'}
         };
 
-      c = getopt_long (argc, argv, "dkhv",
+      c = getopt_long (argc, argv, "dehklquv",
                        long_options, &option_index);
       if (c == (-1))
         break;
@@ -221,14 +294,27 @@ main(int argc, char **argv)
 	case 'd':
 	  args |= ARG_DELETE_PASSWORD;
 	  break;
-	case 'k':
-	  pam_flags |= PAM_CHANGE_EXPIRED_AUTHTOK;
+	case 'e':
+	  args |= ARG_EXPIRE;
 	  break;
         case 'h':
           print_help();
           return 0;
+	case 'k':
+	  pam_flags |= PAM_CHANGE_EXPIRED_AUTHTOK;
+	  break;
+	case 'l':
+	  args |= ARG_LOCK_PASSWORD;
+	  break;
+	case 'q':
+	  quiet = true;
+	  pam_flags |= PAM_SILENT;
+	  break;
+	case 'u':
+	  args |= ARG_UNLOCK_PASSWORD;
+	  break;
         case 'v':
-          // XXX print_version(program, "2005");
+	  printf("passwd (%s) %s\n", PACKAGE, VERSION);
           return 0;
         default:
           print_error();
@@ -266,7 +352,7 @@ main(int argc, char **argv)
     }
 
   if (args)
-    return modify_account(user, args);
+    return modify_account(user, args, quiet);
   else
     {
       _cleanup_(sd_varlink_unrefp) sd_varlink *link = NULL;

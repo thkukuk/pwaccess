@@ -141,7 +141,7 @@ executable('chsh', 'src/chsh.c', 'src/varlink-client-common.c',
            install : true)
 executable('passwd', 'src/passwd.c', 'src/varlink-client-common.c',
            include_directories : inc,
-           link_with : [libpwaccess],
+           link_with : [libpwaccess, libcommon],
            dependencies : [libsystemd, libpam, libpam_misc],
            install : true)
 
