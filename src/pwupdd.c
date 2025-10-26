@@ -62,14 +62,21 @@ error_user_not_found(sd_varlink *link, int64_t uid, const char *name)
 }
 
 static int
-return_internal_error(sd_varlink *link, const char *function, int r)
+return_errno_error(sd_varlink *link, const char *function, int r)
 {
   _cleanup_free_ char *error = NULL;
+  const char *varlink_error = "org.openSUSE.pwupd.InternalError";
+
+  if (r < 0)
+    r = -r;
+
+  if (r == EPERM)
+    varlink_error = "org.openSUSE.pwupd.PermissionDenied";
 
   if (asprintf(&error, "%s failed: %s", function, strerror(r)) < 0)
     error = NULL;
   log_msg(LOG_ERR, "%s", stroom(error));
-  return sd_varlink_errorbo(link, "org.openSUSE.pwupd.InternalError",
+  return sd_varlink_errorbo(link, varlink_error,
 			    SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
 			    SD_JSON_BUILD_PAIR_STRING("ErrorMsg", stroom(error)));
 }
@@ -81,6 +88,8 @@ struct parameters {
   char *shell;
   char *response;
   int flags;
+  sd_json_variant *content_passwd;
+  sd_json_variant *content_shadow;
   /* run_as_user:
      0: let PAM module decide as what we run
      1: PAM modules should assume we run as user even if geteuid() returns 0 */
@@ -94,6 +103,8 @@ parameters_free(struct parameters *var)
   var->name = mfree(var->name);
   var->shell = mfree(var->shell);
   var->response = mfree(var->shell);
+  var->content_passwd = sd_json_variant_unref(var->content_passwd);
+  var->content_shadow = sd_json_variant_unref(var->content_shadow);
 }
 
 static sd_json_variant *send_v = NULL;
@@ -192,6 +203,8 @@ run_pam_auth(void *arg)
     .shell = param->shell,
     .response = NULL,
     .flags = param->flags,
+    .content_passwd = NULL,
+    .content_shadow = NULL,
     .link = param->link,
     .run_as_user = param->run_as_user,
   };
@@ -391,6 +404,8 @@ vl_method_chsh(sd_varlink *link, sd_json_variant *parameters,
     .shell = NULL,
     .response = NULL,
     .flags = 0,
+    .content_passwd = NULL,
+    .content_shadow = NULL,
     .link = link,
     .run_as_user = 0,
   };
@@ -469,7 +484,7 @@ vl_method_chsh(sd_varlink *link, sd_json_variant *parameters,
 
   r = pthread_create(&pam_thread, NULL, &run_pam_auth, &p);
   if (r != 0)
-    return return_internal_error(link, "pthread_create", r);
+    return return_errno_error(link, "pthread_create", r);
 
   pthread_mutex_lock(&mut);
   log_msg(LOG_DEBUG, "chsh: calling pthread_cond_wait");
@@ -484,7 +499,7 @@ vl_method_chsh(sd_varlink *link, sd_json_variant *parameters,
   intptr_t *thread_res = NULL;
   r = pthread_join(pam_thread, (void **)&thread_res);
   if (r != 0)
-    return return_internal_error(link, "pthread_join", r);
+    return return_errno_error(link, "pthread_join", r);
 
   if (thread_res != PAM_SUCCESS)
     {
@@ -520,6 +535,8 @@ run_pam_chauthtok(void *arg)
     .shell = param->shell,
     .response = NULL,
     .flags = param->flags,
+    .content_passwd = NULL,
+    .content_shadow = NULL,
     .link = param->link,
     .run_as_user = param->run_as_user,
   };
@@ -585,6 +602,8 @@ vl_method_chauthtok(sd_varlink *link, sd_json_variant *parameters,
     .shell = NULL,
     .response = NULL,
     .flags = 0,
+    .content_passwd = NULL,
+    .content_shadow = NULL,
     .link = link,
     .run_as_user = 0,
   };
@@ -637,7 +656,7 @@ vl_method_chauthtok(sd_varlink *link, sd_json_variant *parameters,
 		   peer_uid) < 0)
 	error = NULL;
       log_msg(LOG_ERR, "chauthtok: %s", stroom(error));
-      return sd_varlink_errorbo(link, "org.openSUSE.pwupd.InternalError",
+      return sd_varlink_errorbo(link, "org.openSUSE.pwupd.PermissionDenied",
 				SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
 				SD_JSON_BUILD_PAIR_STRING("ErrorMsg", stroom(error)));
     }
@@ -654,13 +673,13 @@ vl_method_chauthtok(sd_varlink *link, sd_json_variant *parameters,
 	{
 	  log_msg(LOG_DEBUG, "Calling setresuid(%u,0,0)", peer_uid);
 	  if (setresuid(peer_uid, 0, 0) != 0)
-	    return return_internal_error(link, "setresuid", errno);
+	    return return_errno_error(link, "setresuid", errno);
 	}
     }
 
   r = pthread_create(&pam_thread, NULL, &run_pam_chauthtok, &p);
   if (r != 0)
-    return return_internal_error(link, "pthread_create", errno);
+    return return_errno_error(link, "pthread_create", errno);
 
   pthread_mutex_lock(&mut);
   log_msg(LOG_DEBUG, "chauthtok: calling pthread_cond_wait");
@@ -675,7 +694,7 @@ vl_method_chauthtok(sd_varlink *link, sd_json_variant *parameters,
   intptr_t *thread_res = NULL;
   r = pthread_join(pam_thread, (void **)&thread_res);
   if (r != 0)
-    return return_internal_error(link, "pthread_joind", errno);
+    return return_errno_error(link, "pthread_joind", errno);
 
   if (thread_res != PAM_SUCCESS)
     {
@@ -702,6 +721,8 @@ vl_method_conv(sd_varlink *link, sd_json_variant *parameters,
     .shell = NULL,
     .response = NULL,
     .flags = 0,
+    .content_passwd = NULL,
+    .content_shadow = NULL,
     .link = link,
     .run_as_user = 0,
   };
@@ -719,12 +740,12 @@ vl_method_conv(sd_varlink *link, sd_json_variant *parameters,
   else
     r = ENOENT;
   if (r != 0)
-    return return_internal_error(link, "Finding PAM thread", r);
+    return return_errno_error(link, "Finding PAM thread", r);
 
   r = sd_varlink_dispatch(p.link, parameters, dispatch_table, &p);
   if (r < 0)
     {
-      log_msg(LOG_ERR, "conv request: varlink dispatch failed: %s", strerror(-r));
+      log_msg(LOG_ERR, "Conv request: varlink dispatch failed: %s", strerror(-r));
       return r;
     }
 
@@ -755,7 +776,7 @@ vl_method_conv(sd_varlink *link, sd_json_variant *parameters,
   intptr_t *thread_res = NULL;
   r = pthread_join(pam_thread, (void **)&thread_res);
   if (r != 0)
-    return return_internal_error(link, "pthread_join", r);
+    return return_errno_error(link, "pthread_join", r);
 
   if (thread_res != PAM_SUCCESS)
     {
@@ -768,6 +789,108 @@ vl_method_conv(sd_varlink *link, sd_json_variant *parameters,
       return sd_varlink_errorbo(link, "org.openSUSE.pwupd.PasswordChangeAborted",
 				SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
 				SD_JSON_BUILD_PAIR_STRING("ErrorMsg", stroom(error)));
+    }
+
+  return sd_varlink_replybo(link, SD_JSON_BUILD_PAIR_BOOLEAN("Success", true));
+}
+
+static int
+vl_method_update_pw_sp(sd_varlink *link, sd_json_variant *parameters,
+		       sd_varlink_method_flags_t _unused_(flags),
+		       void _unused_(*userdata))
+{
+  _cleanup_(parameters_free) struct parameters p = {
+    .name = NULL,
+    .shell = NULL,
+    .response = NULL,
+    .flags = 0,
+    .content_passwd = NULL,
+    .content_shadow = NULL,
+    .link = link,
+    .run_as_user = 0,
+  };
+  static const sd_json_dispatch_field dispatch_table[] = {
+    { "passwd",     SD_JSON_VARIANT_OBJECT,  sd_json_dispatch_variant, offsetof(struct parameters, content_passwd), SD_JSON_NULLABLE },
+    { "shadow",     SD_JSON_VARIANT_OBJECT,  sd_json_dispatch_variant, offsetof(struct parameters, content_shadow), SD_JSON_NULLABLE },
+    {}
+  };
+  static const sd_json_dispatch_field dispatch_passwd_table[] = {
+    { "name",   SD_JSON_VARIANT_STRING, sd_json_dispatch_string, offsetof(struct passwd, pw_name),   SD_JSON_MANDATORY },
+    { "passwd", SD_JSON_VARIANT_STRING, sd_json_dispatch_string, offsetof(struct passwd, pw_passwd), SD_JSON_NULLABLE },
+    { "UID",    SD_JSON_VARIANT_INTEGER, sd_json_dispatch_int,   offsetof(struct passwd, pw_uid),    SD_JSON_MANDATORY },
+    { "GID",    SD_JSON_VARIANT_INTEGER, sd_json_dispatch_int,   offsetof(struct passwd, pw_gid),    SD_JSON_MANDATORY },
+    { "GECOS",  SD_JSON_VARIANT_STRING, sd_json_dispatch_string, offsetof(struct passwd, pw_gecos),  SD_JSON_NULLABLE },
+    { "dir",    SD_JSON_VARIANT_STRING, sd_json_dispatch_string, offsetof(struct passwd, pw_dir),    SD_JSON_NULLABLE },
+    { "shell",  SD_JSON_VARIANT_STRING, sd_json_dispatch_string, offsetof(struct passwd, pw_shell),  SD_JSON_NULLABLE },
+    {}
+  };
+  static const sd_json_dispatch_field dispatch_shadow_table[] = {
+    { "name",   SD_JSON_VARIANT_STRING, sd_json_dispatch_string, offsetof(struct spwd, sp_namp),   SD_JSON_MANDATORY },
+    { "passwd", SD_JSON_VARIANT_STRING, sd_json_dispatch_string, offsetof(struct spwd, sp_pwdp),   SD_JSON_NULLABLE },
+    { "lstchg", SD_JSON_VARIANT_INTEGER, sd_json_dispatch_int64, offsetof(struct spwd, sp_lstchg), 0 },
+    { "min",    SD_JSON_VARIANT_INTEGER, sd_json_dispatch_int64, offsetof(struct spwd, sp_min),    0 },
+    { "max",    SD_JSON_VARIANT_INTEGER, sd_json_dispatch_int64, offsetof(struct spwd, sp_max),    0 },
+    { "warn",   SD_JSON_VARIANT_INTEGER, sd_json_dispatch_int64, offsetof(struct spwd, sp_warn),   0 },
+    { "inact",  SD_JSON_VARIANT_INTEGER, sd_json_dispatch_int64, offsetof(struct spwd, sp_inact),  0 },
+    { "expire", SD_JSON_VARIANT_INTEGER, sd_json_dispatch_int64, offsetof(struct spwd, sp_expire), 0 },
+    { "flag",   SD_JSON_VARIANT_INTEGER, sd_json_dispatch_int64, offsetof(struct spwd, sp_flag),   0 },
+    {}
+  };
+  _cleanup_(struct_passwd_freep) struct passwd *pw = NULL;
+  _cleanup_(struct_shadow_freep) struct spwd *sp = NULL;
+  uid_t peer_uid;
+  int r;
+
+  log_msg(LOG_INFO, "Varlink method \"UpdatePasswdShadow\" called...");
+
+  r = sd_varlink_get_peer_uid(link, &peer_uid);
+  if (r < 0)
+    return return_errno_error(link, "Get peer UID", r);
+
+  if (peer_uid != 0)
+    return return_errno_error(link, "UpdatePasswdShadow", -EPERM);
+
+  r = sd_varlink_dispatch(p.link, parameters, dispatch_table, &p);
+  if (r < 0)
+    return return_errno_error(link, "UpdatePasswdShadow - varlink dispatch", r);
+
+  if (sd_json_variant_is_null(p.content_passwd))
+    {
+      log_msg(LOG_ERR, "UpdatePasswdShadow request: no entry found\n");
+      return 0;
+    }
+
+  pw = calloc(1, sizeof(struct passwd));
+  if (pw == NULL)
+    return -ENOMEM;
+
+  r = sd_json_dispatch(p.content_passwd, dispatch_passwd_table, SD_JSON_ALLOW_EXTENSIONS, pw);
+  if (r < 0)
+    return return_errno_error(link, "Parsing JSON passwd entry", r);
+
+  if (!sd_json_variant_is_null(p.content_shadow) && sd_json_variant_elements(p.content_shadow) > 0)
+    {
+      sp = calloc(1, sizeof(struct spwd));
+      if (sp == NULL)
+        return -ENOMEM;
+
+      r = sd_json_dispatch(p.content_shadow, dispatch_shadow_table, SD_JSON_ALLOW_EXTENSIONS, sp);
+      if (r < 0)
+	return return_errno_error(link, "Parsing JSON shadow entry", r);
+    }
+
+  /* XXX check that pw->pw_name and sp->sp_namp are identical if both
+     are provided */
+
+  r = update_passwd(pw, NULL);
+  if (r < 0)
+    return return_errno_error(link, "Update of passwd", r);
+
+  if (sp)
+    {
+      r = update_shadow(sp, NULL);
+      if (r < 0)
+	return return_errno_error(link, "Update of shadow", r);
     }
 
   return sd_varlink_replybo(link, SD_JSON_BUILD_PAIR_BOOLEAN("Success", true));
@@ -816,13 +939,14 @@ run_varlink (void)
     }
 
   r = sd_varlink_server_bind_method_many (varlink_server,
-					  "org.openSUSE.pwupd.Chauthtok",      vl_method_chauthtok,
-					  "org.openSUSE.pwupd.Chsh",           vl_method_chsh,
-					  "org.openSUSE.pwupd.Conv",           vl_method_conv,
-					  "org.openSUSE.pwupd.GetEnvironment", vl_method_get_environment,
-					  "org.openSUSE.pwupd.Ping",           vl_method_ping,
-					  "org.openSUSE.pwupd.Quit",           vl_method_quit,
-					  "org.openSUSE.pwupd.SetLogLevel",    vl_method_set_log_level);
+					  "org.openSUSE.pwupd.Chauthtok",          vl_method_chauthtok,
+					  "org.openSUSE.pwupd.Chsh",               vl_method_chsh,
+					  "org.openSUSE.pwupd.Conv",               vl_method_conv,
+					  "org.openSUSE.pwupd.UpdatePasswdShadow", vl_method_update_pw_sp,
+					  "org.openSUSE.pwupd.GetEnvironment",     vl_method_get_environment,
+					  "org.openSUSE.pwupd.Ping",               vl_method_ping,
+					  "org.openSUSE.pwupd.Quit",               vl_method_quit,
+					  "org.openSUSE.pwupd.SetLogLevel",        vl_method_set_log_level);
   if (r < 0)
     {
       log_msg(LOG_ERR, "Failed to bind Varlink methods: %s",

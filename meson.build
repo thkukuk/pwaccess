@@ -129,7 +129,7 @@ executable('pwaccessd',
 executable('pwupdd',
            pwupdd_c,
            include_directories : inc,
-	   link_with : [libcommon],
+	   link_with : [libpwaccess, libcommon],
 	   dependencies : [libpam, libsystemd, libeconf, libselinux],
            install_dir : libexecdir,
            install : true)
@@ -141,6 +141,7 @@ executable('chsh', 'src/chsh.c', 'src/varlink-client-common.c',
            install : true)
 executable('passwd', 'src/passwd.c', 'src/varlink-client-common.c',
            include_directories : inc,
+           link_with : [libpwaccess],
            dependencies : [libsystemd, libpam, libpam_misc],
            install : true)
 
