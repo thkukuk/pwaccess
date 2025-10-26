@@ -140,7 +140,7 @@ update_passwd_locked(struct passwd *newpw, const char *etcdir)
 	{
 	  /* XXX we don't support changing uid/gid yet */
 	  int changed = 0;
-	  if (!isempty(newpw->pw_passwd) && !streq(pw->pw_passwd, newpw->pw_passwd))
+	  if (newpw->pw_passwd != NULL && !streq(pw->pw_passwd, newpw->pw_passwd))
 	    {
 	      pw->pw_passwd = newpw->pw_passwd;
 	      changed = 1;
@@ -190,6 +190,13 @@ update_passwd_locked(struct passwd *newpw, const char *etcdir)
   newf = NULL;
   if (r < 0)
     return -errno;
+
+  if (gotit == 0)
+    {
+      /* entry not found */
+      unlink(tmpfn);
+      return -ENOENT;
+    }
 
   unlink(passwd_old);
   r = link(passwd_orig, passwd_old);
@@ -339,6 +346,7 @@ update_shadow_locked(struct spwd *newsp, const char *etcdir)
 	  r = putspent(newsp, newf);
 	  if (r < 0)
 	    return -errno;
+	  gotit = 1;
 	}
       else
 	{
@@ -366,6 +374,13 @@ update_shadow_locked(struct spwd *newsp, const char *etcdir)
   newf = NULL;
   if (r < 0)
     return -errno;
+
+  if (gotit == 0)
+    {
+      /* entry not found */
+      unlink(tmpfn);
+      return -ENOENT;
+    }
 
   unlink(shadow_old);
   r = link(shadow_orig, shadow_old);
