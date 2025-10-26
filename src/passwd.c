@@ -16,10 +16,11 @@
 
 #define USEC_INFINITY ((uint64_t) UINT64_MAX)
 
-#define ARG_DELETE_PASSWORD 1
-#define ARG_EXPIRE          2
-#define ARG_LOCK_PASSWORD   4
-#define ARG_UNLOCK_PASSWORD 8
+#define ARG_DELETE_PASSWORD  1
+#define ARG_EXPIRE           2
+#define ARG_LOCK_PASSWORD    4
+#define ARG_UNLOCK_PASSWORD  8
+#define ARG_STATUS_ACCOUNT  16
 
 static void
 print_usage(FILE *stream)
@@ -39,6 +40,8 @@ print_help(void)
   fputs("  -h, --help        Give this help list\n", stdout);
   fputs("  -k, --keep-tokens Change only expired passwords\n", stdout);
   fputs("  -l, --lock        Lock password\n", stdout);
+  fputs("  -q, --quiet       Be silent\n", stdout);
+  fputs("  -S, --status      Display account status\n", stdout);
   fputs("  -u, --unlock      Unlock password\n", stdout);
   fputs("  -v, --version     Print program version\n", stdout);
 }
@@ -47,6 +50,92 @@ static void
 print_error(void)
 {
   fprintf (stderr, "Try `passwd --help' for more information.\n");
+}
+
+#define DAY (24L*3600L)
+#define SCALE DAY
+
+/* XXX don't use static char buf */
+static inline char *
+date2str(time_t date)
+{
+  static char buf[12];
+  struct tm tm;
+
+  if (date < 0)
+    strcpy(buf, "never");
+ else if (!gmtime_r(&date, &tm))
+   strcpy(buf, "future");
+ else
+   strftime (buf, sizeof (buf), "%Y-%m-%d", &tm);
+
+  return buf;
+}
+
+static const char *
+pw_status(const char *pass)
+{
+  if (startswith(pass, "*") || startswith(pass, "!"))
+    return "L";
+
+  if (isempty(pass))
+    return "NP";
+
+  return "P";
+}
+
+static int
+print_account_status(const char *user)
+{
+  _cleanup_(sd_json_variant_unrefp) sd_json_variant *passwd = NULL;
+  _cleanup_(sd_json_variant_unrefp) sd_json_variant *shadow = NULL;
+  _cleanup_free_ char *error = NULL;
+  _cleanup_(struct_passwd_freep) struct passwd *pw = NULL;
+  _cleanup_(struct_shadow_freep) struct spwd *sp = NULL;
+  bool complete = false;
+  int r;
+
+  r = pwaccess_get_user_record(-1, user, &pw, &sp, &complete, &error);
+  if (r < 0)
+    {
+      if (error)
+        fprintf (stderr, "%s\n", error);
+      else
+        fprintf (stderr, "get_user_record failed: %s\n", strerror(-r));
+      return -r;
+    }
+
+  if (pw == NULL)
+    {
+      fprintf(stderr, "ERROR: no password entry found!\n");
+      return ENOENT;
+    }
+
+  if (!complete)
+    {
+      fprintf(stderr, "Error: couldn't read password field, ignoring.\n");
+      return EPERM;
+    }
+
+  if (sp)
+    printf("%s %s %s %ld %ld %ld %ld\n",
+	   pw->pw_name,
+	   pw_status (sp->sp_pwdp),
+	   date2str(sp->sp_lstchg * SCALE),
+	   sp->sp_min,
+	   sp->sp_max,
+	   sp->sp_warn,
+	   sp->sp_inact);
+  else if (pw->pw_passwd)
+    printf("%s %s\n",
+	   pw->pw_name, pw_status (pw->pw_passwd));
+  else
+    {
+      fprintf(stderr, "Malformed password data obtained for user '%s'.\n",
+	      pw->pw_name);
+      return EINVAL;
+    }
+  return 0;
 }
 
 static int
@@ -103,7 +192,7 @@ modify_account(const char *user, int args, bool quiet)
       if (pw->pw_passwd == NULL)
 	{
 	  fprintf(stderr, "Out of memory!\n");
-	  return -ENOMEM;
+	  return ENOMEM;
 	}
 
       if (sp)
@@ -115,7 +204,7 @@ modify_account(const char *user, int args, bool quiet)
 	  if (sp->sp_pwdp == NULL)
 	    {
 	      fprintf(stderr, "Out of memory!\n");
-	      return -ENOMEM;
+	      return ENOMEM;
 	    }
 	}
       has_change = 1;
@@ -132,14 +221,14 @@ modify_account(const char *user, int args, bool quiet)
       if (is_shadow(pw))
 	{
 	  if (asprintf(&newpw, "!%s", strempty(sp->sp_pwdp)) < 0)
-	    return -ENOMEM;
+	    return ENOMEM;
 	  free(sp->sp_pwdp);
 	  sp->sp_pwdp = newpw;
 	}
       else
 	{
 	  if (asprintf(&newpw, "!%s", strempty(pw->pw_passwd)) < 0)
-	    return -ENOMEM;
+	    return ENOMEM;
 	  free(pw->pw_passwd);
 	  pw->pw_passwd = newpw;
 	}
@@ -153,7 +242,7 @@ modify_account(const char *user, int args, bool quiet)
 	{
 	  newpw=strdup(&(sp->sp_pwdp)[1]);
 	  if (!newpw)
-	    return -ENOMEM;
+	    return ENOMEM;
 	  free(sp->sp_pwdp);
 	  sp->sp_pwdp = newpw;
 	  has_change = 1;
@@ -162,7 +251,7 @@ modify_account(const char *user, int args, bool quiet)
 	{
 	  newpw=strdup(&(pw->pw_passwd)[1]);
 	  if (!newpw)
-	    return -ENOMEM;
+	    return ENOMEM;
 	  free(pw->pw_passwd);
 	  pw->pw_passwd = newpw;
 	  has_change = 1;
@@ -280,12 +369,13 @@ main(int argc, char **argv)
           {"keep-tokens", no_argument,       NULL, 'k' },
 	  {"lock",        no_argument,       NULL, 'l' },
 	  {"quiet",       no_argument,       NULL, 'q' },
+	  {"status",      no_argument,       NULL, 'S' },
 	  {"unlock",      no_argument,       NULL, 'u' },
 	  {"version",     no_argument,       NULL, 'v' },
           {NULL,          0,                 NULL, '\0'}
         };
 
-      c = getopt_long (argc, argv, "dehklquv",
+      c = getopt_long (argc, argv, "dehklqSuv",
                        long_options, &option_index);
       if (c == (-1))
         break;
@@ -309,6 +399,9 @@ main(int argc, char **argv)
 	case 'q':
 	  quiet = true;
 	  pam_flags |= PAM_SILENT;
+	  break;
+	case 'S':
+	  args |= ARG_STATUS_ACCOUNT;
 	  break;
 	case 'u':
 	  args |= ARG_UNLOCK_PASSWORD;
@@ -351,7 +444,9 @@ main(int argc, char **argv)
 	}
     }
 
-  if (args)
+  if (args & ARG_STATUS_ACCOUNT)
+    return print_account_status(user);
+  else if (args)
     return modify_account(user, args, quiet);
   else
     {
