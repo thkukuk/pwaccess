@@ -416,18 +416,26 @@ unix_chauthtok(pam_handle_t *pamh, int flags, struct config_t *cfg)
 	  return PAM_SYSTEM_ERR;
 	}
 
-      if (is_shadow(pw))
+      if (sp && (is_shadow(pw) || isempty(pw->pw_passwd)))
 	{
 	  /* we use _cleanup_ for this struct */
 	  free(sp->sp_pwdp);
 	  sp->sp_pwdp = strdup(new_hash);
 	  if (sp->sp_pwdp == NULL)
-	    return -ENOMEM;
+	    return PAM_BUF_ERR;
 	  sp->sp_lstchg = time(NULL) / (60 * 60 * 24);
 	  if (sp->sp_lstchg == 0)
 	    sp->sp_lstchg = -1; /* Don't request passwort change
 				   only because time isn't set yet. */
 	  r = update_shadow(sp, NULL);
+
+	  if (r == 0 && !streq("x", strempty(pw->pw_passwd)))
+	    {
+	      if (pw->pw_passwd)
+		free(pw->pw_passwd);
+	      pw->pw_passwd = strdup("x");
+	      r = update_passwd(pw, NULL);
+	    }
 	}
       else
 	{
@@ -435,7 +443,7 @@ unix_chauthtok(pam_handle_t *pamh, int flags, struct config_t *cfg)
 	  free(pw->pw_passwd);
 	  pw->pw_passwd = strdup(new_hash);
 	  if (pw->pw_passwd == NULL)
-	    return -ENOMEM;
+	    return PAM_BUF_ERR;
 
 	  r = update_passwd(pw, NULL);
 	}
@@ -443,7 +451,10 @@ unix_chauthtok(pam_handle_t *pamh, int flags, struct config_t *cfg)
       pass_old = pass_new = NULL;
     }
 
-  return PAM_SUCCESS;
+  if (r < 0)
+    return PAM_AUTHTOK_ERR;
+  else
+    return PAM_SUCCESS;
 }
 
 int
