@@ -66,10 +66,10 @@ print_help(void)
   fprintf(stdout, "chsh - change login shell\n\n");
   print_usage(stdout);
 
-  fputs("  -l             List allowed shells from /etc/shells\n", stdout);
-  fputs("  -s shell       Use 'shell' as new login shell\n", stdout);
-  fputs("  -h, --help     Give this help list\n", stdout);
-  fputs("  -v, --version  Print program version\n", stdout);
+  fputs("  -l, --list-shells   List allowed shells from /etc/shells\n", stdout);
+  fputs("  -s, --shell <shell> Use 'shell' as new login shell\n", stdout);
+  fputs("  -h, --help          Give this help list\n", stdout);
+  fputs("  -v, --version       Print program version\n", stdout);
 }
 
 static void
