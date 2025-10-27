@@ -145,17 +145,17 @@ update_passwd_locked(struct passwd *newpw, const char *etcdir)
 	      pw->pw_passwd = newpw->pw_passwd;
 	      changed = 1;
 	    }
-	  if (!isempty(newpw->pw_shell) && !streq(pw->pw_shell, newpw->pw_shell))
+	  if (newpw->pw_shell != NULL && !streq(pw->pw_shell, newpw->pw_shell))
 	    {
 	      pw->pw_shell = newpw->pw_shell;
 	      changed = 1;
 	    }
-	  if (!isempty(newpw->pw_gecos) && !streq(pw->pw_gecos, newpw->pw_gecos))
+	  if (newpw->pw_gecos != NULL && !streq(pw->pw_gecos, newpw->pw_gecos))
 	    {
 	      pw->pw_gecos = newpw->pw_gecos;
 	      changed = 1;
 	    }
-	  if (!isempty(newpw->pw_dir) && !streq(pw->pw_dir, newpw->pw_dir))
+	  if (newpw->pw_dir != NULL && !streq(pw->pw_dir, newpw->pw_dir))
 	    {
 	      pw->pw_dir = newpw->pw_dir;
 	      changed = 1;
