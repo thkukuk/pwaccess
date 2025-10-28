@@ -82,7 +82,7 @@ acct_mgmt(pam_handle_t *pamh, struct config_t *cfg)
     {
     case PWA_EXPIRED_NO:
       break;
-    case PWA_EXPIRED_YES:
+    case PWA_EXPIRED_ACCT:
       pam_syslog(pamh, LOG_NOTICE,
 		 "account %s has expired (account expired)",
 		 user);
@@ -104,10 +104,10 @@ acct_mgmt(pam_handle_t *pamh, struct config_t *cfg)
 	}
       retval = PAM_NEW_AUTHTOK_REQD;
       break;
-    case PWA_EXPIRED_DISABLED:
+    case PWA_EXPIRED_PW:
       pam_syslog(pamh, LOG_NOTICE,
-		 "account %s has expired (failed to change password)", user);
-      pam_error(pamh, "Your account has expired; please contact your system administrator.");
+		 "password for user %s is inactive", user);
+      pam_error(pamh, "Your password is inactive; please contact your system administrator.");
       retval = PAM_AUTHTOK_EXPIRED;
       break;
     default:

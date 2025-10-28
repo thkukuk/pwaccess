@@ -12,12 +12,12 @@
 typedef enum {
   PWA_EXPIRED_NO = 0,          /* account is valid */
 #define PWA_EXPIRED_NO         PWA_EXPIRED_NO
-  PWA_EXPIRED_YES = 1,         /* account is expired */
-#define PWA_EXPIRED_YES        PWA_EXPIRED_YES
+  PWA_EXPIRED_ACCT = 1,        /* account is expired */
+#define PWA_EXPIRED_ACCT       PWA_EXPIRED_ACCT
   PWA_EXPIRED_CHANGE_PW = 2,   /* password is expired, change password */
 #define PWA_EXPIRED_CHANGE_PW  PWA_EXPIRED_CHANGE_PW
-  PWA_EXPIRED_DISABLED = 3,    /* password is expired, password change not possible */
-#define PWA_EXPIRED_DISABLED    PWA_EXPIRED_DISABLED
+  PWA_EXPIRED_PW = 3,          /* password is expired, password change not possible */
+#define PWA_EXPIRED_PW         PWA_EXPIRED_PW
 } pwa_expire_flag_t;
 
 extern struct passwd *struct_passwd_free(struct passwd *var);

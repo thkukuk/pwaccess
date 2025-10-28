@@ -80,7 +80,7 @@ expired_check(const struct spwd *sp, long *daysleft, bool *pwchangeable)
   /* account expired */
   /* XXX ">= 0" or "> 0"? shadow and pam disagree here */
   if (sp->sp_expire >= 0 && now >= sp->sp_expire)
-    return PWA_EXPIRED_YES;
+    return PWA_EXPIRED_ACCT;
 
   /* new password required */
   if (sp->sp_lstchg == 0)
@@ -110,7 +110,7 @@ expired_check(const struct spwd *sp, long *daysleft, bool *pwchangeable)
 	      /* authtok expired */
 	      if (daysleft)
 		*daysleft = inact - passed;
-	      return PWA_EXPIRED_DISABLED;
+	      return PWA_EXPIRED_PW;
 	    }
 	}
       /* needs a new password */
