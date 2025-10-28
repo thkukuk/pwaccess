@@ -78,8 +78,7 @@ expired_check(const struct spwd *sp, long *daysleft, bool *pwchangeable)
   now = time(NULL) / (60 * 60 * 24);
 
   /* account expired */
-  /* XXX ">= 0" or "> 0"? shadow and pam disagree here */
-  if (sp->sp_expire >= 0 && now >= sp->sp_expire)
+  if (sp->sp_expire > 0 && now >= sp->sp_expire)
     return PWA_EXPIRED_ACCT;
 
   /* new password required */
