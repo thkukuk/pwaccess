@@ -99,12 +99,14 @@ pkg.generate(
   version : meson.project_version(),
 )
 
-libcommon_c = files('libcommon/create_hash.c',
+libcommon_c = files('libcommon/chauthtok.c',
                     'libcommon/chfn_checks.c',
+                    'libcommon/create_hash.c',
                     'libcommon/files.c',
                     'libcommon/mkdir_p.c',
                     'libcommon/no_new_privs.c',
                     'libcommon/string-util-fundamental.c',
+                    'libcommon/varlink-client-common.c',
                     'libcommon/verify.c')
 
 libcommon = static_library(
@@ -135,17 +137,22 @@ executable('pwupdd',
            install_dir : libexecdir,
            install : true)
 
-executable('chfn', 'src/chfn.c', 'src/varlink-client-common.c',
-           'src/get_value.c',
+executable('chfn', 'src/chfn.c', 'src/get_value.c',
            include_directories : inc,
+           link_with : [libcommon],
            dependencies : [libsystemd, libpam, libpam_misc, libeconf],
            install : true)
-executable('chsh', 'src/chsh.c', 'src/varlink-client-common.c',
-           'src/get_value.c',
+executable('chsh', 'src/chsh.c', 'src/get_value.c',
            include_directories : inc,
+           link_with : [libcommon],
            dependencies : [libsystemd, libpam, libpam_misc, libeconf],
            install : true)
-executable('passwd', 'src/passwd.c', 'src/varlink-client-common.c',
+executable('passwd', 'src/passwd.c',
+           include_directories : inc,
+           link_with : [libpwaccess, libcommon],
+           dependencies : [libsystemd, libpam, libpam_misc],
+           install : true)
+executable('expiry', 'src/expiry.c',
            include_directories : inc,
            link_with : [libpwaccess, libcommon],
            dependencies : [libsystemd, libpam, libpam_misc],
