@@ -28,6 +28,7 @@ extern void struct_shadow_freep(struct spwd **var);
 
 extern int pwaccess_check_expired(const char *user, long *daysleft,
 				  bool *pwchangeable, char ** error);
+extern int pwaccess_get_account_name(int64_t uid, char **name, char **error);
 extern int pwaccess_get_user_record(int64_t uid, const char *user,
 				    struct passwd **pw, struct spwd **sp,
 				    bool *complete, char **error);

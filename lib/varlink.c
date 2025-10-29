@@ -52,6 +52,7 @@ struct user_record {
   bool pwchangeable;
   int expired;
   long daysleft;
+  char *account_name;
   struct passwd *pw;
   struct spwd *sp;
   sd_json_variant *content_passwd;
@@ -111,6 +112,7 @@ static void
 user_record_free(struct user_record *var)
 {
   var->error = mfree(var->error);
+  var->account_name = mfree(var->account_name);
   var->content_passwd = sd_json_variant_unref(var->content_passwd);
   var->content_shadow = sd_json_variant_unref(var->content_shadow);
 }
@@ -122,6 +124,7 @@ pwaccess_get_user_record(int64_t uid, const char *user, struct passwd **ret_pw, 
   _cleanup_(user_record_free) struct user_record p = {
     .success = false,
     .error = NULL,
+    .account_name = NULL,
     .content_passwd = NULL,
     .content_shadow = NULL,
   };
@@ -272,6 +275,7 @@ pwaccess_verify_password(const char *user, const char *password, bool nullok, bo
   _cleanup_(user_record_free) struct user_record p = {
     .success = false,
     .error = NULL,
+    .account_name = NULL,
     .content_passwd = NULL,
     .content_shadow = NULL,
   };
@@ -360,7 +364,6 @@ pwaccess_verify_password(const char *user, const char *password, bool nullok, bo
   return 0;
 }
 
-
 /* return values:
    < 0: error occured
      0: all fine
@@ -372,6 +375,7 @@ pwaccess_check_expired(const char *user, long *daysleft, bool *pwchangeable, cha
   _cleanup_(user_record_free) struct user_record p = {
     .success = false,
     .error = NULL,
+    .account_name = NULL,
     .content_passwd = NULL,
     .content_shadow = NULL,
   };
@@ -458,4 +462,97 @@ pwaccess_check_expired(const char *user, long *daysleft, bool *pwchangeable, cha
     *pwchangeable = p.pwchangeable;
 
   return p.expired;
+}
+
+int
+pwaccess_get_account_name(int64_t uid, char **name, char **error)
+{
+  _cleanup_(user_record_free) struct user_record p = {
+    .success = false,
+    .error = NULL,
+    .account_name = NULL,
+    .content_passwd = NULL,
+    .content_shadow = NULL,
+  };
+  static const sd_json_dispatch_field dispatch_table[] = {
+    { "Success",  SD_JSON_VARIANT_BOOLEAN, sd_json_dispatch_stdbool, offsetof(struct user_record, success), 0 },
+    { "ErrorMsg", SD_JSON_VARIANT_STRING,  sd_json_dispatch_string,  offsetof(struct user_record, error), 0 },
+    { "userName", SD_JSON_VARIANT_STRING,  sd_json_dispatch_string,  offsetof(struct user_record, account_name), 0 },
+    {}
+  };
+  _cleanup_(sd_varlink_unrefp) sd_varlink *link = NULL;
+  _cleanup_(sd_json_variant_unrefp) sd_json_variant *params = NULL;
+  sd_json_variant *result = NULL;
+  const char *error_id = NULL;
+  int r;
+
+  if (name)
+    *name = NULL;
+
+  if (uid < 0)
+    return -EINVAL;
+
+  r = connect_to_pwaccessd(&link, _VARLINK_PWACCESS_SOCKET, error);
+  if (r < 0)
+    return r;
+
+  r = sd_json_buildo(&params,
+                     SD_JSON_BUILD_PAIR("uid", SD_JSON_BUILD_INTEGER(uid)));
+  if (r < 0)
+    {
+      fprintf(stderr, "Failed to build param list: %s\n", strerror(-r));
+      return r;
+    }
+
+  r = sd_varlink_call(link, "org.openSUSE.pwaccess.GetAccountName", params, &result, &error_id);
+  if (r < 0)
+    {
+      fprintf(stderr, "Failed to call GetAccountName method: %s\n", strerror(-r));
+      return r;
+    }
+
+  /* dispatch before checking error_id, we may need the result for the error
+     message */
+  r = sd_json_dispatch(result, dispatch_table, SD_JSON_ALLOW_EXTENSIONS, &p);
+  if (r < 0)
+    {
+      fprintf(stderr, "Failed to parse JSON answer: %s\n", strerror(-r));
+      return r;
+    }
+
+  if (error_id && strlen(error_id) > 0)
+    {
+      int retval = -EIO;
+
+      if (error)
+	{
+	  if (p.error)
+	    *error = TAKE_PTR(p.error);
+	  else
+	    {
+	      *error = strdup(error_id);
+	      if (*error == NULL)
+		retval = -ENOMEM;
+	    }
+	}
+
+      /* Yes, we will overwrite a possible ENOMEM, but
+	 this shouldn't matter here */
+      if (streq(error_id, "org.openSUSE.pwaccess.NoEntryFound"))
+	retval = -ENODATA;
+
+      return retval;
+    }
+
+  if (!p.success)
+    {
+      if (error)
+	*error = TAKE_PTR(p.error);
+      return 0;
+    }
+
+  if (name)
+    *name = TAKE_PTR(p.account_name);
+
+  return 0;
 }

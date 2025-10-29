@@ -24,6 +24,17 @@ static SD_VARLINK_DEFINE_STRUCT_TYPE(ShadowEntry,
 				     SD_VARLINK_DEFINE_FIELD(flag,       SD_VARLINK_INT,    SD_VARLINK_NULLABLE));
 
 static SD_VARLINK_DEFINE_METHOD(
+		GetAccountName,
+                SD_VARLINK_FIELD_COMMENT("The numeric 32bit UNIX UID of the account"),
+                SD_VARLINK_DEFINE_INPUT(uid, SD_VARLINK_INT, 0),
+                SD_VARLINK_FIELD_COMMENT("The account name of the UID."),
+                SD_VARLINK_DEFINE_OUTPUT(userName, SD_VARLINK_STRING, 0),
+		SD_VARLINK_FIELD_COMMENT("If call succeeded"),
+                SD_VARLINK_DEFINE_OUTPUT(Success, SD_VARLINK_BOOL, 0),
+                SD_VARLINK_FIELD_COMMENT("Error Message"),
+                SD_VARLINK_DEFINE_OUTPUT(ErrorMsg, SD_VARLINK_STRING, SD_VARLINK_NULLABLE));
+
+static SD_VARLINK_DEFINE_METHOD(
 		GetUserRecord,
                 SD_VARLINK_FIELD_COMMENT("The numeric 32bit UNIX UID of the record, if look-up by UID is desired."),
                 SD_VARLINK_DEFINE_INPUT(uid, SD_VARLINK_INT, SD_VARLINK_NULLABLE),
@@ -94,6 +105,8 @@ SD_VARLINK_DEFINE_INTERFACE(
 		&vl_type_PasswdEntry,
 		SD_VARLINK_SYMBOL_COMMENT("Describe shadow entry"),
 		&vl_type_ShadowEntry,
+		SD_VARLINK_SYMBOL_COMMENT("Get account name for UID"),
+		&vl_method_GetAccountName,
 		SD_VARLINK_SYMBOL_COMMENT("Get user entries from passwd and shadow"),
                 &vl_method_GetUserRecord,
 		SD_VARLINK_SYMBOL_COMMENT("Get group entries from group and gshadow"),

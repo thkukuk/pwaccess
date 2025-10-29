@@ -62,21 +62,23 @@ no_valid_name(const char *name)
 }
 
 static int
-error_user_not_found(sd_varlink *link, int64_t uid, const char *name)
+error_user_not_found(sd_varlink *link, int64_t uid, const char *name, int errcode)
 {
-  if (errno == 0)
+  if (errcode == 0)
     {
-      const char *cp;
-
-      if (no_valid_name(name))
-	cp = "<name contains invalid characters>";
-      else
-	cp = name;
-
       if (uid >= 0)
-	log_msg(LOG_INFO, "User (%" PRId64 "|%s) not found", uid, strna(cp));
+	log_msg(LOG_INFO, "User (%" PRId64 ") not found", uid);
       else
-	log_msg(LOG_INFO, "User '%s' not found", strna(cp));
+	{
+	  const char *cp;
+
+	  if (no_valid_name(name))
+	    cp = "<name contains invalid characters>";
+	  else
+	    cp = name;
+
+	  log_msg(LOG_INFO, "User '%s' not found", strna(cp));
+	}
       return sd_varlink_errorbo(link, "org.openSUSE.pwaccess.NoEntryFound",
 				SD_JSON_BUILD_PAIR_BOOLEAN("Success", false));
     }
@@ -84,7 +86,7 @@ error_user_not_found(sd_varlink *link, int64_t uid, const char *name)
     {
       _cleanup_free_ char *error = NULL;
 
-      if (asprintf(&error, "user not found: %m") < 0)
+      if (asprintf(&error, "user not found: %s", strerror(errcode)) < 0)
 	error = NULL;
       log_msg(LOG_ERR, "%s", stroom(error));
       return sd_varlink_errorbo(link, "org.openSUSE.pwaccess.InternalError",
@@ -113,6 +115,53 @@ parameters_free(struct parameters *var)
 }
 
 static int
+vl_method_get_account_name(sd_varlink *link, sd_json_variant *parameters,
+			   sd_varlink_method_flags_t _unused_(flags),
+			   void _unused_(*userdata))
+{
+  _cleanup_(sd_json_variant_unrefp) sd_json_variant *result = NULL;
+  _cleanup_(parameters_free) struct parameters p = {
+    .uid = -1,
+    .name = NULL,
+    .password = NULL,
+  };
+  static const sd_json_dispatch_field dispatch_table[] = {
+    { "uid",      SD_JSON_VARIANT_INTEGER, sd_json_dispatch_int64,  offsetof(struct parameters, uid), SD_JSON_MANDATORY},
+    {}
+  };
+  struct passwd *pw = NULL;
+  int r;
+
+  log_msg(LOG_INFO, "Varlink method \"GetAccountName\" called...");
+
+  r = sd_varlink_dispatch(link, parameters, dispatch_table, &p);
+  if (r < 0)
+    {
+      log_msg(LOG_ERR, "GetAccountName request: varlink dispatch failed: %s", strerror(-r));
+      return r;
+    }
+
+  log_msg(LOG_DEBUG, "GetAccountName(%" PRId64 ")", p.uid);
+
+  if (p.uid == -1)
+    {
+      log_msg(LOG_ERR, "GetAccountName request: no UID specified");
+      return sd_varlink_errorbo(link, "org.openSUSE.pwaccess.InvalidParameter",
+				SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
+				SD_JSON_BUILD_PAIR_STRING("ErrorMsg", "No UID specified"));
+    }
+
+  errno = 0; /* to find out if getpwuid succeed and there is no entry if there was an error */
+  pw = getpwuid(p.uid);
+  if (pw == NULL)
+    return error_user_not_found(link, p.uid, NULL, errno);
+
+  return sd_varlink_replybo(link,
+                            SD_JSON_BUILD_PAIR_BOOLEAN("Success", true),
+                            SD_JSON_BUILD_PAIR_STRING("userName", pw->pw_name));
+}
+
+static int
 vl_method_get_user_record(sd_varlink *link, sd_json_variant *parameters,
 			  sd_varlink_method_flags_t _unused_(flags),
 			  void _unused_(*userdata))
@@ -123,6 +172,7 @@ vl_method_get_user_record(sd_varlink *link, sd_json_variant *parameters,
   _cleanup_(parameters_free) struct parameters p = {
     .uid = -1,
     .name = NULL,
+    .password = NULL,
   };
   static const sd_json_dispatch_field dispatch_table[] = {
     { "uid",      SD_JSON_VARIANT_INTEGER, sd_json_dispatch_int64,  offsetof(struct parameters, uid), 0},
@@ -168,14 +218,14 @@ vl_method_get_user_record(sd_varlink *link, sd_json_variant *parameters,
 				SD_JSON_BUILD_PAIR_STRING("ErrorMsg", "UID and user name specified"));
     }
 
-  errno = 0; /* to find out if getpwuid/getpwnam succeed and there is no entry if there was an error */
+  errno = 0; /* to find out if getpwuid/getpwnam succeed and there is no
+		entry if there was an error */
   if (p.uid != -1)
     pw = getpwuid(p.uid);
   else
     pw = getpwnam(p.name);
-
   if (pw == NULL)
-    return error_user_not_found(link, p.uid, p.name);
+    return error_user_not_found(link, p.uid, p.name, errno);
 
   /* Don't return password if query does not come from root
      and result is not the one of the calling user */
@@ -319,9 +369,8 @@ vl_method_verify_password(sd_varlink *link, sd_json_variant *parameters,
   struct passwd *pw = NULL;
   errno = 0; /* to find out if getpwnam succeed and there is no entry or if there was an error */
   pw = getpwnam(p.name);
-
   if (pw == NULL)
-    return error_user_not_found(link, -1, p.name);
+    return error_user_not_found(link, -1, p.name, errno);
 
   /* Don't verify password if query does not come from root
      and result is not the one of the calling user */
@@ -441,12 +490,11 @@ vl_method_expired_check(sd_varlink *link, sd_json_variant *parameters,
 				SD_JSON_BUILD_PAIR_STRING("ErrorMsg", "No user name specified"));
     }
 
-  struct passwd *pw = NULL;
+  struct passwd *pw;
   errno = 0; /* to find out if getpwnam succeed and there is no entry or if there was an error */
   pw = getpwnam(p.name);
-
   if (pw == NULL)
-    return error_user_not_found(link, -1, p.name);
+    return error_user_not_found(link, -1, p.name, errno);
 
   /* Don't verify password if query does not come from root
      and result is not the one of the calling user */
@@ -609,6 +657,7 @@ run_varlink (void)
     }
 
   r = sd_varlink_server_bind_method_many (varlink_server,
+					  "org.openSUSE.pwaccess.GetAccountName", vl_method_get_account_name,
 					  "org.openSUSE.pwaccess.GetUserRecord",  vl_method_get_user_record,
 					  "org.openSUSE.pwaccess.VerifyPassword", vl_method_verify_password,
 					  "org.openSUSE.pwaccess.ExpiredCheck",   vl_method_expired_check,
