@@ -140,7 +140,7 @@ executable('pwupdd',
 
 executable('chfn', 'src/chfn.c', 'src/get_value.c',
            include_directories : inc,
-           link_with : [libcommon],
+           link_with : [libcommon, libpwaccess],
            dependencies : [libsystemd, libpam, libpam_misc, libeconf],
            install : true)
 executable('chsh', 'src/chsh.c', 'src/get_value.c',

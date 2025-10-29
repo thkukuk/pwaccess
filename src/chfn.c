@@ -108,6 +108,7 @@ main(int argc, char **argv)
   const char *old_room = NULL;
   const char *old_work_phone = NULL;
   const char *user = NULL;
+  _cleanup_free_ char *error = NULL;
   int r;
 
   while (1)
@@ -183,14 +184,17 @@ main(int argc, char **argv)
     user = argv[0];
   else
     {
-      struct passwd *pw = getpwuid(getuid());
-      if (pw == NULL)
-        {
-          fprintf(stderr, "User (%u) not found!\n", getuid());
-          return ENOENT;
-        }
+      _cleanup_free_ char *name = NULL;
 
-      user = strdupa(pw->pw_name);
+      r = pwaccess_get_account_name(getuid(), &name, &error);
+      if (r < 0)
+	{
+	  fprintf(stderr, "Get account name failed: %s\n",
+		  error?error:strerror(-r));
+	  return -r;
+	}
+
+      user = strdupa(name);
       if (user == NULL)
         {
           fprintf(stderr, "Out of memory!\n");
@@ -255,9 +259,16 @@ main(int argc, char **argv)
       return 0;
     }
 
-  r = connect_to_pwupdd(&link, _VARLINK_PWUPD_SOCKET, NULL /* XXX error */);
+  r = connect_to_pwupdd(&link, _VARLINK_PWUPD_SOCKET, &error);
   if (r < 0)
-    return -r;
+    {
+      if (error)
+        fprintf(stderr, "%s\n", error);
+      else
+        fprintf(stderr, "Cannot connect to pwupd! (%s)\n", strerror(-r));
+
+      return -r;
+    }
 
   r = sd_json_variant_merge_objectbo(&params,
 				     SD_JSON_BUILD_PAIR_STRING("userName", user));
