@@ -22,23 +22,33 @@
 static int
 ask_or_print(const char *old, const char *prompt, char **input, char field)
 {
+  _cleanup_free_ char *error = NULL;
   bool allowed = true;
   int r;
 
-  allowed = may_change_field(getuid(), field);
+  allowed = may_change_field(getuid(), field, &error);
+  if (error)
+    {
+      fprintf(stderr, "%s\n", error);
+      return -EPERM;
+    }
   if (allowed)
     {
       r = get_value(old, prompt, input);
       if (r < 0)
 	return r;
 
+      if (*input == NULL)
+	{
+	  fprintf(stderr, "chfn aborted.\n");
+	  return -ENODATA;
+	}
+
       /* don't change string if equal */
       if (streq(strempty(old), *input))
 	*input = mfree(*input);
       else
 	{
-	  _cleanup_free_ char *error = NULL;
-
 	  /* field "other" allows ',' and '=' */
 	  if (!chfn_check_string(*input, field=='o'?":":":,=", &error))
 	    {
@@ -50,7 +60,7 @@ ask_or_print(const char *old, const char *prompt, char **input, char field)
 	}
     }
   else
-    printf("%s: %s\n", prompt, old);
+    printf("%s: '%s'\n", prompt, strempty(old));
 
   return 0;
 }

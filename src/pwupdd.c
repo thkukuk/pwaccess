@@ -435,12 +435,14 @@ vl_method_chfn(sd_varlink *link, sd_json_variant *parameters,
 
   if (p.full_name)
     {
-      if (!may_change_field(peer_uid, 'f'))
+      if (!may_change_field(peer_uid, 'f', &error))
 	{
+	  if (error)
+	    log_msg(LOG_ERR, "chfn (full name): %s", error);
 	  parameters_free(&p);
 	  return return_errno_error(link, "permission check (full name)", -EPERM);
 	}
-      if (!chfn_check_string(p.full_name, ":,=\n", &error))
+      if (!chfn_check_string(p.full_name, ":,=", &error))
 	{
 	  if (error)
 	    log_msg(LOG_ERR, "chfn (full name): %s", error);
@@ -450,12 +452,14 @@ vl_method_chfn(sd_varlink *link, sd_json_variant *parameters,
     }
   if (p.home_phone)
     {
-      if (!may_change_field(peer_uid, 'h'))
+      if (!may_change_field(peer_uid, 'h', &error))
 	{
+	  if (error)
+	    log_msg(LOG_ERR, "chfn (home phone): %s", error);
 	  parameters_free(&p);
 	  return return_errno_error(link, "permission check (home phone)", -EPERM);
 	}
-      if (!chfn_check_string(p.home_phone, ":,=\n", &error))
+      if (!chfn_check_string(p.home_phone, ":,=", &error))
 	{
 	  if (error)
 	    log_msg(LOG_ERR, "chfn (home phone): %s", error);
@@ -465,12 +469,14 @@ vl_method_chfn(sd_varlink *link, sd_json_variant *parameters,
     }
   if (p.other)
     {
-      if (!may_change_field(peer_uid, 'o'))
+      if (!may_change_field(peer_uid, 'o', &error))
 	{
+	  if (error)
+	    log_msg(LOG_ERR, "chfn (other): %s", error);
 	  parameters_free(&p);
 	  return return_errno_error(link, "permission check (other)", -EPERM);
 	}
-      if (!chfn_check_string(p.other, ":\n", &error))
+      if (!chfn_check_string(p.other, ":", &error))
 	{
 	  if (error)
 	    log_msg(LOG_ERR, "chfn (other): %s", error);
@@ -480,12 +486,14 @@ vl_method_chfn(sd_varlink *link, sd_json_variant *parameters,
     }
   if (p.room)
     {
-      if (!may_change_field(peer_uid, 'r'))
+      if (!may_change_field(peer_uid, 'r', &error))
 	{
+	  if (error)
+	    log_msg(LOG_ERR, "chfn (room): %s", error);
 	  parameters_free(&p);
 	  return return_errno_error(link, "permission check (room)", -EPERM);
 	}
-      if (!chfn_check_string(p.room, ":,=\n", &error))
+      if (!chfn_check_string(p.room, ":,=", &error))
 	{
 	  if (error)
 	    log_msg(LOG_ERR, "chfn (room): %s", error);
@@ -495,12 +503,14 @@ vl_method_chfn(sd_varlink *link, sd_json_variant *parameters,
     }
   if (p.work_phone)
     {
-      if (!may_change_field(peer_uid, 'w'))
+      if (!may_change_field(peer_uid, 'w', &error))
 	{
+	  if (error)
+	    log_msg(LOG_ERR, "chfn (work phone): %s", error);
 	  parameters_free(&p);
 	  return return_errno_error(link, "permission check (work phone)", -EPERM);
 	}
-      if (!chfn_check_string(p.work_phone, ":,=\n", &error))
+      if (!chfn_check_string(p.work_phone, ":,=", &error))
 	{
 	  if (error)
 	    log_msg(LOG_ERR, "chfn (work phone): %s", error);

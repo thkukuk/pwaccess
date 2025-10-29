@@ -11,11 +11,8 @@
 #include "basics.h"
 #include "chfn_checks.h"
 
-/* XXX Don't print error on stderr but return, could be called
-   by pwupdd */
-
 static const char *
-get_chfn_restrict(void)
+get_chfn_restrict(char **ret_error)
 {
   static const char *value = NULL;
   _cleanup_(econf_freeFilep) econf_file *key_file = NULL;
@@ -34,15 +31,32 @@ get_chfn_restrict(void)
                            "#" /* comment */);
   if (error != ECONF_SUCCESS)
     {
-      fprintf(stderr, "Cannot parse login.defs: %s",
-              econf_errString(error));
+      if (ret_error)
+	{
+	  _cleanup_free_ char *errstr = NULL;
+
+	  if (asprintf(&errstr, "Cannot parse login.defs: %s",
+		       econf_errString(error)) < 0)
+	    *ret_error = NULL;
+	  else
+	    *ret_error = TAKE_PTR(errstr);
+	}
       return ""; /* be very restrictive, allow nothing */
     }
 
-  if ((error = econf_getStringValue (key_file, NULL, "CHFN_RESTRICT", &val)))
+  error = econf_getStringValue (key_file, NULL, "CHFN_RESTRICT", &val);
+  if (error != ECONF_SUCCESS)
     {
-      fprintf (stderr, "Error reading CHFN_RESTRICT: %s\n",
-               econf_errString(error));
+      if (ret_error)
+	{
+	  _cleanup_free_ char *errstr = NULL;
+
+	  if (asprintf(&errstr, "Error reading CHFN_RESTRICT: %s",
+		       econf_errString(error)) < 0)
+	    *ret_error = NULL;
+	  else
+	    *ret_error = TAKE_PTR(errstr);
+	}
       return "";
     }
   else value = val;
@@ -51,7 +65,7 @@ get_chfn_restrict(void)
 }
 
 bool
-may_change_field(uid_t uid, char field)
+may_change_field(uid_t uid, char field, char **error)
 {
   const char *cp;
 
@@ -61,7 +75,9 @@ may_change_field(uid_t uid, char field)
 
   /* CHFN_RESTRICT specifies exactly which fields may be changed
      by regular users.  */
-  cp = get_chfn_restrict();
+  cp = get_chfn_restrict(error);
+  if (error && *error)
+    return false;
 
   if (strchr(cp, field))
     return true;
