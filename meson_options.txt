@@ -4,3 +4,6 @@ option('pamlibdir', type : 'string',
        description : 'directory for PAM modules')
 option('selinux', type: 'feature', value: 'auto',
        description: 'SELinux support')
+option('vendordir', type: 'string', value: '/usr/etc',
+       description : 'directory for distribution provided config files (e.g. login.defs)')
+

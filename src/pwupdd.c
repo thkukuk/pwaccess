@@ -612,7 +612,7 @@ is_known_shell(const char *shell)
 
   error = econf_readConfig(&key_file,
                            NULL /* project */,
-                           "/usr/etc" /* usr_conf_dir */,
+                           _PATH_VENDORDIR /* usr_conf_dir */,
                            "shells" /* config_name */,
                            NULL /* config_suffix */,
                            "" /* delim, key only */,

@@ -22,6 +22,7 @@ conf.set_quoted('_VARLINK_PWACCESS_SOCKET_DIR', '/run/pwaccess')
 conf.set_quoted('_VARLINK_PWACCESS_SOCKET', '/run/pwaccess/socket')
 conf.set_quoted('_VARLINK_PWUPD_SOCKET_DIR', '/run/pwaccess')
 conf.set_quoted('_VARLINK_PWUPD_SOCKET', '/run/pwaccess/pwupd-socket')
+conf.set_quoted('_PATH_VENDORDIR', get_option('vendordir'))
 
 cc = meson.get_compiler('c')
 pkg = import('pkgconfig')

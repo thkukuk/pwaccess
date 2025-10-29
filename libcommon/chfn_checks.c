@@ -1,5 +1,7 @@
 //SPDX-License-Identifier: LGPL-2.1-or-later
 
+#include "config.h"
+
 #include <errno.h>
 #include <stdlib.h>
 #include <wctype.h>
@@ -25,7 +27,7 @@ get_chfn_restrict(void)
 
   error = econf_readConfig(&key_file,
                            NULL /* project */,
-                           "/usr/etc" /* usr_conf_dir */ /* XXX configurable */,
+                           _PATH_VENDORDIR /* usr_conf_dir */,
                            "login" /* config_name */,
                            "defs" /* config_suffix */,
                            "= \t" /* delim */,
