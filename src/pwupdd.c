@@ -403,6 +403,8 @@ vl_method_chfn(sd_varlink *link, sd_json_variant *parameters,
     { "workPhone", SD_JSON_VARIANT_STRING,  sd_json_dispatch_string, offsetof(struct parameters, work_phone), SD_JSON_NULLABLE},
     {}
   };
+  _cleanup_free_ char *error = NULL;
+  struct passwd *pw = NULL;
   uid_t peer_uid;
   int r;
 
@@ -424,39 +426,89 @@ vl_method_chfn(sd_varlink *link, sd_json_variant *parameters,
 
   if (isempty(p.name))
     {
+      parameters_free(&p);
       log_msg(LOG_ERR, "chfn request: no user name specified");
       return sd_varlink_errorbo(link, "org.openSUSE.pwupd.InvalidParameter",
 				SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
 				SD_JSON_BUILD_PAIR_STRING("ErrorMsg", "No user name specified"));
     }
 
-  if (p.full_name && !chfn_check_string(p.full_name, ":,=\n", NULL /* XXX error */))
+  if (p.full_name)
     {
-      parameters_free(&p);
-      return return_errno_error(link, "character check (full name)", -EINVAL);
+      if (!may_change_field(peer_uid, 'f'))
+	{
+	  parameters_free(&p);
+	  return return_errno_error(link, "permission check (full name)", -EPERM);
+	}
+      if (!chfn_check_string(p.full_name, ":,=\n", &error))
+	{
+	  if (error)
+	    log_msg(LOG_ERR, "chfn (full name): %s", error);
+	  parameters_free(&p);
+	  return return_errno_error(link, "character check (full name)", -EINVAL);
+	}
     }
-  if (p.home_phone && !chfn_check_string(p.home_phone, ":,=\n", NULL /* XXX error */))
+  if (p.home_phone)
     {
-      parameters_free(&p);
-      return return_errno_error(link, "character check (home phone)", -EINVAL);
+      if (!may_change_field(peer_uid, 'h'))
+	{
+	  parameters_free(&p);
+	  return return_errno_error(link, "permission check (home phone)", -EPERM);
+	}
+      if (!chfn_check_string(p.home_phone, ":,=\n", &error))
+	{
+	  if (error)
+	    log_msg(LOG_ERR, "chfn (home phone): %s", error);
+	  parameters_free(&p);
+	  return return_errno_error(link, "character check (home phone)", -EINVAL);
+	}
     }
-  if (p.other && !chfn_check_string(p.other, ":\n", NULL /* XXX error */))
+  if (p.other)
     {
-      parameters_free(&p);
-      return return_errno_error(link, "character check (other)", -EINVAL);
+      if (!may_change_field(peer_uid, 'o'))
+	{
+	  parameters_free(&p);
+	  return return_errno_error(link, "permission check (other)", -EPERM);
+	}
+      if (!chfn_check_string(p.other, ":\n", &error))
+	{
+	  if (error)
+	    log_msg(LOG_ERR, "chfn (other): %s", error);
+	  parameters_free(&p);
+	  return return_errno_error(link, "character check (other)", -EINVAL);
+	}
     }
-  if (p.room && !chfn_check_string(p.room, ":,=\n", NULL /* XXX error */))
+  if (p.room)
     {
-      parameters_free(&p);
-      return return_errno_error(link, "character check (room)", -EINVAL);
+      if (!may_change_field(peer_uid, 'r'))
+	{
+	  parameters_free(&p);
+	  return return_errno_error(link, "permission check (room)", -EPERM);
+	}
+      if (!chfn_check_string(p.room, ":,=\n", &error))
+	{
+	  if (error)
+	    log_msg(LOG_ERR, "chfn (room): %s", error);
+	  parameters_free(&p);
+	  return return_errno_error(link, "character check (room)", -EINVAL);
+	}
     }
-  if (p.work_phone && !chfn_check_string(p.work_phone, ":,=\n", NULL /* XXX error */))
+  if (p.work_phone)
     {
-      parameters_free(&p);
-      return return_errno_error(link, "character check (work phone)", -EINVAL);
+      if (!may_change_field(peer_uid, 'w'))
+	{
+	  parameters_free(&p);
+	  return return_errno_error(link, "permission check (work phone)", -EPERM);
+	}
+      if (!chfn_check_string(p.work_phone, ":,=\n", &error))
+	{
+	  if (error)
+	    log_msg(LOG_ERR, "chfn (work phone): %s", error);
+	  parameters_free(&p);
+	  return return_errno_error(link, "character check (work phone)", -EINVAL);
+	}
     }
 
-  struct passwd *pw = NULL;
   errno = 0; /* to find out if getpwnam succeed and there is no entry or if there was an error */
   pw = getpwnam(p.name);
   if (pw == NULL)
@@ -477,8 +529,6 @@ vl_method_chfn(sd_varlink *link, sd_json_variant *parameters,
      and result is not the one of the calling user */
   if (peer_uid != 0 && pw->pw_uid != peer_uid)
     {
-      _cleanup_free_ char *error = NULL;
-
       if (asprintf(&error, "Peer UID (%i) not 0 and peer UID not equal to UID",
 		   peer_uid) < 0)
 	error = NULL;
@@ -488,10 +538,6 @@ vl_method_chfn(sd_varlink *link, sd_json_variant *parameters,
 				SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
 				SD_JSON_BUILD_PAIR_STRING("ErrorMsg", stroom(error)));
     }
-
-  /* XXX check if user is allowed to modify this entries.
-     may_change_field(peer_uid, ...);
-     See CHFN_RESTRICT from login.defs */
 
   /* Run under the UID of the caller, else pam_unix will not ask for old password
      and pam_rootok will wrongly match. */
@@ -535,8 +581,6 @@ vl_method_chfn(sd_varlink *link, sd_json_variant *parameters,
 
   if (thread_res != PAM_SUCCESS)
     {
-      _cleanup_free_ char *error = NULL;
-
       int64_t t = (int64_t)thread_res;
       if (t > 0)
 	{

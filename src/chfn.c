@@ -15,29 +15,39 @@
 #include "pwaccess.h"
 #include "varlink-client-common.h"
 #include "get_value.h"
+#include "chfn_checks.h"
 
 #define USEC_INFINITY ((uint64_t) UINT64_MAX)
 
 static int
-ask_or_print(const char *old, const char *prompt, char **input)
+ask_or_print(const char *old, const char *prompt, char **input, char field)
 {
   bool allowed = true;
   int r;
 
-  /* XXX check if user is allowed to modify this field.
-     if not, only print old value */
-
-  /* XXX check that there are no invalid characters in new string */
-
+  allowed = may_change_field(getuid(), field);
   if (allowed)
     {
       r = get_value(old, prompt, input);
       if (r < 0)
-	return -r;
+	return r;
 
       /* don't change string if equal */
       if (streq(strempty(old), *input))
 	*input = mfree(*input);
+      else
+	{
+	  _cleanup_free_ char *error = NULL;
+
+	  /* field "other" allows ',' and '=' */
+	  if (!chfn_check_string(*input, field=='o'?":":":,=", &error))
+	    {
+	      *input = mfree(*input);
+	      if (error)
+		fprintf(stderr, "%s: %s\n", prompt, error);
+	      return -EINVAL;
+	    }
+	}
     }
   else
     printf("%s: %s\n", prompt, old);
@@ -206,23 +216,23 @@ main(int argc, char **argv)
 
       printf("Enter the new value, or press return for the default.\n");
 
-      r = ask_or_print(old_full_name, "Full Name", &new_full_name);
+      r = ask_or_print(old_full_name, "Full Name", &new_full_name, 'f');
       if (r < 0)
 	return -r;
 
-      r = ask_or_print(old_room, "Room Number", &new_room);
+      r = ask_or_print(old_room, "Room Number", &new_room, 'r');
       if (r < 0)
 	return -r;
 
-      r = ask_or_print(old_work_phone, "Work Phone", &new_work_phone);
+      r = ask_or_print(old_work_phone, "Work Phone", &new_work_phone, 'w');
       if (r < 0)
 	return -r;
 
-      r = ask_or_print(old_home_phone, "Home Phone", &new_home_phone);
+      r = ask_or_print(old_home_phone, "Home Phone", &new_home_phone, 'h');
       if (r < 0)
 	return -r;
 
-      r = ask_or_print(old_other, "Other", &new_other);
+      r = ask_or_print(old_other, "Other", &new_other, 'o');
       if (r < 0)
 	return -r;
     }

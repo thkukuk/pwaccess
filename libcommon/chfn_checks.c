@@ -4,9 +4,49 @@
 #include <stdlib.h>
 #include <wctype.h>
 #include <wchar.h>
+#include <libeconf.h>
 
 #include "basics.h"
 #include "chfn_checks.h"
+
+/* XXX Don't print error on stderr but return, could be called
+   by pwupdd */
+
+static const char *
+get_chfn_restrict(void)
+{
+  static const char *value = NULL;
+  _cleanup_(econf_freeFilep) econf_file *key_file = NULL;
+  econf_err error;
+  char *val = NULL;
+
+  if (value)
+    return value;
+
+  error = econf_readConfig(&key_file,
+                           NULL /* project */,
+                           "/usr/etc" /* usr_conf_dir */ /* XXX configurable */,
+                           "login" /* config_name */,
+                           "defs" /* config_suffix */,
+                           "= \t" /* delim */,
+                           "#" /* comment */);
+  if (error != ECONF_SUCCESS)
+    {
+      fprintf(stderr, "Cannot parse login.defs: %s",
+              econf_errString(error));
+      return ""; /* be very restrictive, allow nothing */
+    }
+
+  if ((error = econf_getStringValue (key_file, NULL, "CHFN_RESTRICT", &val)))
+    {
+      fprintf (stderr, "Error reading CHFN_RESTRICT: %s\n",
+               econf_errString(error));
+      return "";
+    }
+  else value = val;
+
+  return value;
+}
 
 bool
 may_change_field(uid_t uid, char field)
@@ -19,8 +59,7 @@ may_change_field(uid_t uid, char field)
 
   /* CHFN_RESTRICT specifies exactly which fields may be changed
      by regular users.  */
-  // XXX cp = getlogindefs_str("CHFN_RESTRICT", "");
-  cp = "rwh";
+  cp = get_chfn_restrict();
 
   if (strchr(cp, field))
     return true;
@@ -64,24 +103,35 @@ chfn_check_string(const char *string, const char *illegal, char **error)
 
   r = mbstowcs_alloc(string, &wstr);
   if (r < 0)
-    return false; /* XXX set *error */
+    {
+      if (error)
+	*error = strdup(strerror(-r));
+      return false;
+    }
 
   r = mbstowcs_alloc(illegal, &willegal);
   if (r < 0)
-    return false; /* XXX set *error */
+    {
+      if (error)
+	*error = strdup(strerror(-r));
+      return false;
+    }
 
   for (size_t i = 0; i < wcslen(wstr); i++)
     {
       wchar_t c = wstr[i];
-      if (wcschr(willegal, c) != NULL || c == '"' || c == '\n')
+      if (wcschr(willegal, c) != NULL || c == '\n')
         {
-          // XX printf (_("%s: The characters '%s\"' are not allowed.\n"),
-	  // program, illegal);
+	  if (error)
+	    if (asprintf(error, "The characters '%s\\n' are not allowed.",
+			 illegal) < 0)
+	      *error = NULL;
           return false;
         }
       if (iswcntrl (c))
         {
-          // XXX printf (_("%s: Control characters are not allowed.\n"), program);
+	  if (error)
+	  *error = strdup("Control characters are not allowed.");
           return false;
         }
     }
