@@ -364,27 +364,30 @@ vl_method_verify_password(sd_varlink *link, sd_json_variant *parameters,
 				SD_JSON_BUILD_PAIR_STRING("ErrorMsg", stroom(error)));
     }
 
-  const char *hash = NULL;
+  const char *hash = pw->pw_passwd;
   if (is_shadow(pw))
     {
       /* Get shadow entry */
       errno = 0;
       struct spwd *sp = getspnam(pw->pw_name);
-      if (sp == NULL && errno != 0)
+      if (sp == NULL)
 	{
-	  _cleanup_free_ char *error = NULL;
+	  /* errno == 0 => no shadow entry exists, do nothing */
+	  if (errno != 0)
+	    {
+	      _cleanup_free_ char *error = NULL;
 
-	  if (asprintf(&error, "getspnam() failed: %m") < 0)
-	    error = NULL;
-	  log_msg(LOG_ERR, "%s", stroom(error));
-	  return sd_varlink_errorbo(link, "org.openSUSE.pwaccess.InternalError",
-				    SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
-				    SD_JSON_BUILD_PAIR_STRING("ErrorMsg", stroom(error)));
+	      if (asprintf(&error, "getspnam() failed: %m") < 0)
+		error = NULL;
+	      log_msg(LOG_ERR, "%s", stroom(error));
+	      return sd_varlink_errorbo(link, "org.openSUSE.pwaccess.InternalError",
+					SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
+					SD_JSON_BUILD_PAIR_STRING("ErrorMsg", stroom(error)));
+	    }
 	}
-      hash = sp->sp_pwdp;
+      else
+	hash = sp->sp_pwdp;
     }
-  else
-    hash = pw->pw_passwd;
 
   r = verify_password(hash, p.password, p.nullok);
   if (r < 0)
