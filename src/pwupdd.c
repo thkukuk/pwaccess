@@ -662,7 +662,7 @@ check_shell(const char *shell, uid_t uid, char **msg)
       if (uid)
         return 1;
     }
-  if (access (shell, F_OK) < 0)
+  else if (access(shell, F_OK) < 0)
     {
       if (msg)
 	{
@@ -672,7 +672,7 @@ check_shell(const char *shell, uid_t uid, char **msg)
       if (uid)
         return 1;
     }
-  if (access (shell, X_OK) < 0)
+  else if (access(shell, X_OK) < 0)
     {
       if (msg)
 	{
@@ -777,8 +777,12 @@ vl_method_chsh(sd_varlink *link, sd_json_variant *parameters,
   errno = 0; /* to find out if getpwnam succeed and there is no entry or if there was an error */
   pw = getpwnam(p.name);
 
-  if (pw == NULL) /* XXX manual free p */
-    return error_user_not_found(link, -1, p.name);
+  if (pw == NULL)
+    {
+      r = error_user_not_found(link, -1, p.name);
+      parameters_free(&p);
+      return r;
+    }
 
   /* Don't change shell if query does not come from root
      and result is not the one of the calling user */
@@ -790,6 +794,7 @@ vl_method_chsh(sd_varlink *link, sd_json_variant *parameters,
 		   peer_uid) < 0)
 	error = NULL;
       log_msg(LOG_ERR, "chsh: %s", stroom(error));
+      parameters_free(&p);
       return sd_varlink_errorbo(link, "org.openSUSE.pwupd.InternalError",
 				SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
 				SD_JSON_BUILD_PAIR_STRING("ErrorMsg", stroom(error)));
@@ -800,14 +805,15 @@ vl_method_chsh(sd_varlink *link, sd_json_variant *parameters,
   if (r != 0)
     {
       log_msg(LOG_ERR, "chsh (check_shell): %s", stroom(msg));
+      parameters_free(&p);
       return sd_varlink_errorbo(link, "org.openSUSE.pwupd.InvalidShell",
 				SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
 				SD_JSON_BUILD_PAIR_STRING("ErrorMsg", stroom(msg)));
     }
-  if (msg)
-    {
-      /* XXX send msg as informal text */
-    }
+  if (msg) /* ignore if it fails or not */
+    sd_varlink_replybo(link,
+		       SD_JSON_BUILD_PAIR_INTEGER("msg_style", PAM_TEXT_INFO),
+		       SD_JSON_BUILD_PAIR_STRING("message", msg));
 
   /* Run under the UID of the caller, else pam_unix will not ask for old password
      and pam_rootok will wrongly match. */
@@ -823,7 +829,10 @@ vl_method_chsh(sd_varlink *link, sd_json_variant *parameters,
 	{
 	  log_msg(LOG_DEBUG, "Calling setresuid(%u,0,0)", peer_uid);
 	  if (setresuid(peer_uid, 0, 0) != 0)
-	    return return_errno_error(link, "setresuid", errno);
+	    {
+	      parameters_free(&p);
+	      return return_errno_error(link, "setresuid", errno);
+	    }
 	}
     }
 
@@ -897,13 +906,6 @@ run_pam_chauthtok(void *arg)
   };
   pam_handle_t *pamh = NULL;
   intptr_t r;
-
-#if 0 /* XXX */
-  if (silent)
-    flags |= PAM_SILENT;
-  if (change_expired)
-    flags |= PAM_CHANGE_EXPIRED_AUTHTOK;
-#endif
 
   r = pam_start(p.pam_service, p.name, &conv, &pamh);
   if (r != PAM_SUCCESS)
@@ -1000,8 +1002,12 @@ vl_method_chauthtok(sd_varlink *link, sd_json_variant *parameters,
   errno = 0; /* to find out if getpwnam succeed and there is no entry or if there was an error */
   pw = getpwnam(p.name);
 
-  if (pw == NULL) /* XXX manual free p */
-    return error_user_not_found(link, -1, p.name);
+  if (pw == NULL)
+    {
+      r = error_user_not_found(link, -1, p.name);
+      parameters_free(&p);
+      return r;
+    }
 
   /* Don't change password if query does not come from root
      and result is not the one of the calling user */
@@ -1013,6 +1019,7 @@ vl_method_chauthtok(sd_varlink *link, sd_json_variant *parameters,
 		   peer_uid) < 0)
 	error = NULL;
       log_msg(LOG_ERR, "chauthtok: %s", stroom(error));
+      parameters_free(&p);
       return sd_varlink_errorbo(link, "org.openSUSE.pwupd.PermissionDenied",
 				SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
 				SD_JSON_BUILD_PAIR_STRING("ErrorMsg", stroom(error)));
@@ -1032,7 +1039,10 @@ vl_method_chauthtok(sd_varlink *link, sd_json_variant *parameters,
 	{
 	  log_msg(LOG_DEBUG, "Calling setresuid(%u,0,0)", peer_uid);
 	  if (setresuid(peer_uid, 0, 0) != 0)
-	    return return_errno_error(link, "setresuid", errno);
+	    {
+	      parameters_free(&p);
+	      return return_errno_error(link, "setresuid", errno);
+	    }
 	}
     }
 
