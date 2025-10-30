@@ -110,12 +110,12 @@ vl_method_get_account_name(sd_varlink *link, sd_json_variant *parameters,
 
   log_msg(LOG_DEBUG, "GetAccountName(%" PRId64 ")", p.uid);
 
-  if (p.uid == -1)
+  if (p.uid < 0 || p.uid > UINT32_MAX)
     {
-      log_msg(LOG_ERR, "GetAccountName request: no UID specified");
+      log_msg(LOG_ERR, "GetAccountName request: UID is out of range");
       return sd_varlink_errorbo(link, "org.openSUSE.pwaccess.InvalidParameter",
 				SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
-				SD_JSON_BUILD_PAIR_STRING("ErrorMsg", "No UID specified"));
+				SD_JSON_BUILD_PAIR_STRING("ErrorMsg", "UID is out of range"));
     }
 
   errno = 0; /* to find out if getpwuid succeed and there is no entry if there was an error */
@@ -177,12 +177,22 @@ vl_method_get_user_record(sd_varlink *link, sd_json_variant *parameters,
 				SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
 				SD_JSON_BUILD_PAIR_STRING("ErrorMsg", "No UID nor user name specified"));
     }
-  if (p.uid != -1 && !isempty(p.name))
+  if (p.uid != -1)
     {
-      log_msg(LOG_ERR, "GetUserRecord request: UID and user name specified");
-      return sd_varlink_errorbo(link, "org.openSUSE.pwaccess.InvalidParameter",
-				SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
-				SD_JSON_BUILD_PAIR_STRING("ErrorMsg", "UID and user name specified"));
+      if (!isempty(p.name))
+	{
+	  log_msg(LOG_ERR, "GetUserRecord request: UID and user name specified");
+	  return sd_varlink_errorbo(link, "org.openSUSE.pwaccess.InvalidParameter",
+				    SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
+				    SD_JSON_BUILD_PAIR_STRING("ErrorMsg", "UID and user name specified"));
+	}
+      if (p.uid < 0 || p.uid > UINT32_MAX)
+	{
+	  log_msg(LOG_ERR, "GetUserRecord request: UID is out of range");
+	  return sd_varlink_errorbo(link, "org.openSUSE.pwaccess.InvalidParameter",
+				    SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
+				    SD_JSON_BUILD_PAIR_STRING("ErrorMsg", "UID is out of range"));
+	}
     }
 
   errno = 0; /* to find out if getpwuid/getpwnam succeed and there is no
