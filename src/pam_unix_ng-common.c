@@ -210,7 +210,7 @@ authenticate_user(pam_handle_t *pamh, uint32_t ctrl,
           r = verify_password(hash, password, nullok);
           if (r == VERIFY_OK)
             *ret_authenticated = true;
-          else if (r != VERIFY_FAILED) /* XXX error message why it failed */
+          else if (r != VERIFY_FAILED)
 	    {
 	      switch(r)
 		{
