@@ -69,6 +69,8 @@ authenticate(pam_handle_t *pamh, struct config_t *cfg)
     }
 
   r = authenticate_user(pamh, cfg->ctrl, user, password, &authenticated, &error);
+  if (error)
+    pam_error(pamh, "%s", error);
   if (r != PAM_SUCCESS)
     return r;
 
