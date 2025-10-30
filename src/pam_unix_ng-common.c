@@ -30,6 +30,9 @@ parse_args(pam_handle_t *pamh, int flags, int argc, const char **argv,
   if (flags & PAM_SILENT)
     cfg->ctrl |= ARG_QUIET;
 
+  if (flags & PAM_DISALLOW_NULL_AUTHTOK)
+    cfg->ctrl |= ARG_NONULL;
+
   /* step through arguments */
   for (; argc-- > 0; ++argv)
     {
@@ -87,6 +90,10 @@ parse_args(pam_handle_t *pamh, int flags, int argc, const char **argv,
 	pam_syslog(pamh, LOG_ERR, "Unknown option: %s", *argv);
     }
 
+  if (cfg->ctrl & ARG_DEBUG)
+    pam_syslog(pamh, LOG_DEBUG, "Flags set by application:%s%s",
+	       flags & PAM_SILENT?"PAM_SILENT":"",
+	       flags & PAM_DISALLOW_NULL_AUTHTOK?"PAM_DISALLOW_NULL_AUTHTOK":"");
   return 0;
 }
 
@@ -116,7 +123,8 @@ authenticate_user(pam_handle_t *pamh, uint32_t ctrl,
 		  const char *user, const char *password,
 		  bool *ret_authenticated, char **error)
 {
-  bool nullok = ctrl & ARG_NULLOK;
+  /* NONULL has preference over NULLOK */
+  bool nullok = (ctrl & ARG_NULLOK) && !(ctrl & ARG_NONULL);
   int r;
 
   r = pwaccess_verify_password(user, password, nullok,

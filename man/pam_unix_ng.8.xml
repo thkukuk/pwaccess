@@ -63,6 +63,11 @@
             user access to a service if their official password is blank.
             The <option>nullok</option> argument overrides this default.
           </para>
+	  <para>
+	    If the application sets the 
+	    <emphasis>PAM_DISALLOW_NULL_AUTHTOK</emphasis> flag,
+	    <option>nullok</option> is ignored in the auth module type.
+	  </para>
         </listitem>
       </varlistentry>
             <varlistentry>
@@ -229,7 +234,10 @@
     <title>EXAMPLES</title>
     <para>
       Add the following line to e.g. <filename>/etc/pam.d/login</filename> to
-      display the last login time of a user:
+      log when a user logs in and out to
+      <citerefentry>
+        <refentrytitle>syslog</refentrytitle><manvolnum>8</manvolnum>
+      </citerefentry>:
     </para>
     <programlisting>
       session  required  pam_unix_ng.so

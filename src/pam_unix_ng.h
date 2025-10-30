@@ -11,6 +11,7 @@
 #define ARG_DEBUG	1 /* send info to syslog(3) */
 #define ARG_QUIET	2 /* keep quiet about things */
 #define ARG_NULLOK	4 /* allow blank passwords */
+#define ARG_NONULL	8 /* don't allow blank passwords */
 
 struct config_t
 {

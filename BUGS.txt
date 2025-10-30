@@ -1,6 +1,5 @@
 - pam_unix_ng(chauthtok): geteuid() check doesn't work anymore after setuid() of pwupd, test for nosetprivs like sudo
 - pwupd/pam_unix_ng: tell somehow PAM if it got called by root or an user
-- pam_unix_ng: support PAM_DISALLOW_NULL_AUTHTOK
 - pam_unix_ng: handle PAM_SILENT correct
 - pwupd/pwaccess: Support PAM_SILENT (varlink option for client)
 - pwupd/pwaccess varlink definition: add OUTPUT fields
