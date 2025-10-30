@@ -92,8 +92,8 @@ parse_args(pam_handle_t *pamh, int flags, int argc, const char **argv,
 
   if (cfg->ctrl & ARG_DEBUG)
     pam_syslog(pamh, LOG_DEBUG, "Flags set by application:%s%s",
-	       flags & PAM_SILENT?"PAM_SILENT":"",
-	       flags & PAM_DISALLOW_NULL_AUTHTOK?"PAM_DISALLOW_NULL_AUTHTOK":"");
+	       flags & PAM_SILENT?" PAM_SILENT":"",
+	       flags & PAM_DISALLOW_NULL_AUTHTOK?" PAM_DISALLOW_NULL_AUTHTOK":"");
   return 0;
 }
 
@@ -186,32 +186,49 @@ authenticate_user(pam_handle_t *pamh, uint32_t ctrl,
               r = getspnam_r(user, &spbuf, buf, bufsize, &sp);
               if (sp == NULL)
                 {
-                  if (r == 0)
+                  if (r != 0) /* r == 0 means there is no shadow entry for this account,
+				 so pw->pw_passwd is incorrectly set. Ignore, crypt()
+				 will fail. */
                     {
-                      if (valid_name(user))
-                        pam_error(pamh, "User '%s' not found", user);
-                      else
-                        pam_error(pamh, "User not found (contains invalid characters)");
-                      return PAM_USER_UNKNOWN;
-                    }
-                  pam_syslog(pamh, LOG_WARNING, "getspnam_r(): %s", strerror(r));
-                  pam_error(pamh, "getspnam_r(): %s", strerror(r));
-                  return PAM_SYSTEM_ERR;
+		      pam_syslog(pamh, LOG_WARNING, "getspnam_r(): %s", strerror(r));
+		      pam_error(pamh, "getspnam_r(): %s", strerror(r));
+		      return PAM_SYSTEM_ERR;
+		    }
                 }
-              hash = mfree(hash);
-              hash = strdup(strempty(sp->sp_pwdp));
-              if (hash == NULL)
-                {
-                  pam_syslog(pamh, LOG_CRIT, "Out of memory!");
-                  pam_error(pamh, "Out of memory!");
-                  return PAM_BUF_ERR;
-                }
+	      else
+		{
+		  hash = mfree(hash);
+		  hash = strdup(strempty(sp->sp_pwdp));
+		  if (hash == NULL)
+		    {
+		      pam_syslog(pamh, LOG_CRIT, "Out of memory!");
+		      pam_error(pamh, "Out of memory!");
+		      return PAM_BUF_ERR;
+		    }
+		}
             }
           r = verify_password(hash, password, nullok);
           if (r == VERIFY_OK)
             *ret_authenticated = true;
           else if (r != VERIFY_FAILED) /* XXX error message why it failed */
-            return PAM_SYSTEM_ERR;
+	    {
+	      switch(r)
+		{
+		case VERIFY_CRYPT_DISABLED:
+		  pam_syslog(pamh, LOG_ERR, "crypt algo of hash is disabled");
+		  pam_error(pamh, "Crypt alogrithm of password hash is disabled");
+		  break;
+		case VERIFY_CRYPT_INVALID:
+		  pam_syslog(pamh, LOG_ERR, "crypt algo of hash is not supported");
+		  pam_error(pamh, "Crypt alogrithm of hash is not supported");
+		  break;
+		default:
+		  pam_syslog(pamh, LOG_ERR, "Unknown verify_password() error: %i", r);
+		  pam_error(pamh, "Unknown verify_password() error: %i", r);
+		  break;
+		}
+	      return PAM_SYSTEM_ERR;
+	    }
         }
       else
         return PAM_SYSTEM_ERR;
