@@ -28,39 +28,6 @@
 
 static int socket_activation = false;
 
-/* XXX sync with valid_name */
-static bool
-no_valid_name(const char *name)
-{
-  /* This function tests if the name has invalid characters, not if the
-     name is really valid.
-
-     User/group names must match BRE regex:
-     [a-zA-Z0-9_.][a-zA-Z0-9_.-]*$\?
-
-     Reject every name containing additional characters.
-  */
-
-  if (isempty(name))
-    return true;
-
-  while (*name != '\0')
-    {
-      if (!((*name >= 'a' && *name <= 'z') ||
-	    (*name >= 'A' && *name <= 'Z') ||
-	    (*name >= '0' && *name <= '9') ||
-	    *name == '_' ||
-	    *name == '.' ||
-	    *name == '-' ||
-	    *name == '$')
-	  )
-	return true;
-      ++name;
-    }
-
-  return false;
-}
-
 static int
 error_user_not_found(sd_varlink *link, int64_t uid, const char *name, int errcode)
 {
@@ -72,7 +39,7 @@ error_user_not_found(sd_varlink *link, int64_t uid, const char *name, int errcod
 	{
 	  const char *cp;
 
-	  if (no_valid_name(name))
+	  if (!valid_name(name))
 	    cp = "<name contains invalid characters>";
 	  else
 	    cp = name;
