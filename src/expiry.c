@@ -38,6 +38,9 @@ print_error(void)
 int
 main(int argc, char **argv)
 {
+  _cleanup_free_ char *error = NULL;
+  _cleanup_free_ char *user = NULL;
+  long daysleft = -1;
   int cflg = 0;
   int fflg = 0;
   int r;
@@ -96,23 +99,20 @@ main(int argc, char **argv)
     }
 
   /* common for -c and -f */
-  long daysleft = -1;
-  _cleanup_free_ char *error = NULL;
-  struct passwd *pw;
-
-  pw = getpwuid(getuid());
-  if (pw == NULL)
+  r = pwaccess_get_account_name(getuid(), &user, &error);
+  if (r < 0)
     {
-      fprintf(stderr, "User (%u) not found!\n", getuid());
-      return ENOENT;
+      fprintf(stderr, "Get account name failed: %s\n",
+	      error?error:strerror(-r));
+      return -r;
     }
 
-  r = pwaccess_check_expired(pw->pw_name, &daysleft,
+  r = pwaccess_check_expired(user, &daysleft,
 			     NULL /* pwchangeable */, &error);
   if (r < 0)
     {
       fprintf(stderr, "Calling pwaccess check expired failed: %s\n",
-	      error ? error : strerror(-r));
+	      error?error:strerror(-r));
       return -r;
     }
 
@@ -148,7 +148,7 @@ main(int argc, char **argv)
 	  return EINVAL;
 	  break;
 	}
-      return chauthtok(pw->pw_name, PAM_CHANGE_EXPIRED_AUTHTOK);
+      return chauthtok(user, PAM_CHANGE_EXPIRED_AUTHTOK);
     }
   else
     {

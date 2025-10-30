@@ -148,34 +148,24 @@ main(int argc, char **argv)
     {
       _cleanup_(sd_varlink_unrefp) sd_varlink *link = NULL;
       _cleanup_(sd_json_variant_unrefp) sd_json_variant *params = NULL;
+      _cleanup_(struct_passwd_freep) struct passwd *pw = NULL;
+      _cleanup_free_ char *error = NULL;
       const char *user = NULL;
       const char *old_shell = NULL;
       int r;
 
-      struct passwd *pw = getpwuid(getuid());
-      if (pw == NULL)
+      if (argc == 1)
+	r = pwaccess_get_user_record(-1, argv[0], &pw, NULL, NULL, &error);
+      else
+	r = pwaccess_get_user_record(getuid(), NULL, &pw, NULL, NULL, &error);
+      if (r < 0)
 	{
-	  fprintf(stderr, "User (%u) not found!\n", getuid());
-	  return ENOENT;
-	}
-      old_shell = strdup(pw->pw_shell);
-      if (old_shell == NULL)
-	{
-	  fprintf(stderr, "Out of memory!\n");
-	  return ENOMEM;
+	  fprintf (stderr, "get_user_record failed: %s\n", error?error:strerror(-r));
+	  return 1;
 	}
 
-      if (argc == 1)
-	user = argv[0];
-      else
-	{
-	  user = strdupa(pw->pw_name);
-	  if (user == NULL)
-	    {
-	      fprintf(stderr, "Out of memory!\n");
-	      return ENOMEM;
-	    }
-	}
+      user = pw->pw_name;
+      old_shell = pw->pw_shell;
 
       if (new_shell == NULL)
 	{
@@ -192,9 +182,16 @@ main(int argc, char **argv)
 	  return 0;
 	}
 
-      r = connect_to_pwupdd(&link, _VARLINK_PWUPD_SOCKET, NULL /* XXX error */);
+      r = connect_to_pwupdd(&link, _VARLINK_PWUPD_SOCKET, &error);
       if (r < 0)
-	return -r;
+	{
+	  if (error)
+	    fprintf(stderr, "%s\n", error);
+	  else
+	    fprintf(stderr, "Cannot connect to pwupd! (%s)\n", strerror(-r));
+
+	  return -r;
+	}
 
       r = sd_json_buildo(&params,
 			 SD_JSON_BUILD_PAIR("userName", SD_JSON_BUILD_STRING(user)),
