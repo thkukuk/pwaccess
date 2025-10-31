@@ -17,13 +17,13 @@
 
 /* Print the time in a human readable format.  */
 static void
-print_date(time_t date)
+print_date(time_t date, bool iso8601)
 {
   struct tm *tp;
   char buf[40];
 
   tp = gmtime(&date);
-  if (strftime(buf, sizeof buf, "%b %d, %Y", tp) == 0)
+  if (strftime(buf, sizeof buf, iso8601?"%F":"%b %d, %Y", tp) == 0)
     {
       puts("strftime failed!");
       return;
@@ -34,7 +34,7 @@ print_date(time_t date)
 
 /* Print the current values of the expiration fields.  */
 static int
-print_shadow_info (const char *user)
+print_shadow_info (const char *user, bool iso8601)
 {
   _cleanup_(struct_passwd_freep) struct passwd *pw = NULL;
   _cleanup_(struct_shadow_freep) struct spwd *sp = NULL;
@@ -72,14 +72,14 @@ print_shadow_info (const char *user)
   else if (sp->sp_lstchg < 0)
     printf("never\n");
   else
-    print_date(sp->sp_lstchg * SCALE);
+    print_date(sp->sp_lstchg * SCALE, iso8601);
 
   printf("Password expires:\t\t");
   if (sp->sp_lstchg < 0 || sp->sp_max >= 10000 * (DAY / SCALE)
       || sp->sp_max < 0)
     printf("never\n");
   else
-    print_date(sp->sp_lstchg * SCALE + sp->sp_max * SCALE);
+    print_date(sp->sp_lstchg * SCALE + sp->sp_max * SCALE, iso8601);
 
   printf("Password inactive:\t\t");
   if (sp->sp_lstchg < 0 || sp->sp_inact < 0 ||
@@ -87,13 +87,13 @@ print_shadow_info (const char *user)
     printf("never\n");
   else
     print_date(sp->sp_lstchg * SCALE +
-               (sp->sp_max + sp->sp_inact) * SCALE);
+               (sp->sp_max + sp->sp_inact) * SCALE, iso8601);
 
   printf("Account expires:\t\t");
   if (sp->sp_expire < 0)
     printf("never\n");
   else
-    print_date(sp->sp_expire * SCALE);
+    print_date(sp->sp_expire * SCALE, iso8601);
 
   printf("Minimum password age:\t\t");
   if (sp->sp_min <= 0)
@@ -131,6 +131,7 @@ print_help(void)
   fprintf(stdout, "chage - change and list user expiry data\n\n");
   print_usage(stdout);
 
+  fputs("  -i, --iso8601  Print dates as YYYY-MM-DD\n", stdout);
   fputs("  -l, --list     List account aging information\n", stdout);
   fputs("  -h, --help     Give this help list\n", stdout);
   fputs("  -v, --version  Print program version\n", stdout);
@@ -145,6 +146,7 @@ print_error(void)
 int
 main(int argc, char **argv)
 {
+  int i_flag = 0;
   int l_flag = 0;
 
   while (1)
@@ -153,18 +155,22 @@ main(int argc, char **argv)
       int option_index = 0;
       static struct option long_options[] =
         {
+	  {"iso8601",     no_argument,       NULL, 'i' },
           {"list",        no_argument,       NULL, 'l' },
           {"version",     no_argument,       NULL, 'v' },
           {"help",        no_argument,       NULL, 'h' },
           {NULL,          0,                 NULL, '\0'}
         };
 
-      c = getopt_long(argc, argv, "lvh",
+      c = getopt_long(argc, argv, "ilvh",
                        long_options, &option_index);
       if (c == (-1))
         break;
       switch (c)
         {
+	case 'i':
+	  i_flag = 1;
+	  break;
         case 'l':
           l_flag = 1;
           break;
@@ -191,7 +197,7 @@ main(int argc, char **argv)
     }
 
   if (l_flag)
-    return print_shadow_info(argv[0]);
+    return print_shadow_info(argv[0], i_flag);
   else
     {
       print_usage(stderr);
