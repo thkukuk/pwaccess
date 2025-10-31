@@ -187,7 +187,7 @@ pam_debuginfo = shared_library(
   include_directories : inc,
   link_args : ['-shared', pam_unix_ng_map_version],
   link_depends : pam_unix_ng_map,
-  dependencies : [libpam],
+  dependencies : [libpam, libselinux],
   install : true,
   install_dir : pamlibdir
 )

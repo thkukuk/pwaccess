@@ -1,17 +1,51 @@
 // SPDX-License-Identifier: BSD-2-Clause
 
+#include "config.h"
+
+#include <errno.h>
 #include <syslog.h>
 #include <security/pam_modules.h>
 #include <security/pam_modutil.h>
 #include <security/pam_ext.h>
+#ifdef WITH_SELINUX
+#include <selinux/selinux.h>
+#endif
 
 #include "basics.h"
 #include "no_new_privs.h"
 
+static const char *
+selinux_status(pam_handle_t *pamh)
+{
+#ifdef WITH_SELINUX
+  if (is_selinux_enabled() > 0)
+    {
+      int r = security_getenforce();
+      switch (r)
+	{
+        case 1:
+	  return ", selinux=enforcing";
+	  break;
+        case 0:
+	  return ", selinux=permissive";
+	  break;
+        default:
+	  pam_syslog(pamh, LOG_ERR, "selinux error: %s",
+		     strerror(errno));
+	  return ", selinux=error";
+	  break;
+        }
+    }
+  else
+    return ", selinux=off";
+#else
+  return "";
+#endif
+}
+
 /* XXX add flags */
 static void
-log_debug_info(pam_handle_t *pamh, const char *type,
-	       int flags)
+log_debug_info(pam_handle_t *pamh, const char *type, int flags)
 {
   const void *service = NULL;
   const void *user = NULL;
@@ -32,11 +66,12 @@ log_debug_info(pam_handle_t *pamh, const char *type,
              "service=%s type=%s flags=%d "
              "logname=%s uid=%u euid=%u "
              "tty=%s ruser=%s rhost=%s "
-             "user=%s%s",
+             "user=%s%s%s",
 	     strna(service), type, flags,
              strna(login_name), getuid(), geteuid(),
              strna(tty), strna(ruser), strna(rhost),
-             strna(user), no_new_privs_enabled()?", no_new_privs=1":"");
+             strna(user), selinux_status(pamh),
+	     no_new_privs_enabled()?", no_new_privs=1":"");
 }
 
 int
