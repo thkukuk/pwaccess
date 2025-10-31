@@ -8,4 +8,5 @@ option('selinux', type: 'feature', value: 'auto',
        description: 'SELinux support')
 option('vendordir', type: 'string', value: '/usr/etc',
        description : 'directory for distribution provided config files (e.g. login.defs)')
-
+option('distribution', type : 'string',
+       description : 'Name of used distribution: example, suse')   

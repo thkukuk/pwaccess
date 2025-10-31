@@ -15,6 +15,11 @@ project(
   version : '0.3.0',
 )
 
+distribution = get_option('distribution')
+if distribution == ''
+  distribution = 'example'
+endif
+
 conf = configuration_data()
 conf.set_quoted('VERSION', meson.project_version())
 conf.set_quoted('PACKAGE', meson.project_name())
@@ -208,9 +213,12 @@ subdir('include')
 subdir('units')
 
 # example pam configuration files
-install_data('pam.d/example/pwupd-chfn', install_dir : pamconfdir)
-install_data('pam.d/example/pwupd-chsh', install_dir : pamconfdir)
-install_data('pam.d/example/pwupd-passwd', install_dir : pamconfdir)
+pamdchfnsrc = 'pam.d' / distribution / 'pwupd-chfn'
+pamdchshsrc = 'pam.d' / distribution / 'pwupd-chsh'
+pamdpasswdsrc = 'pam.d' / distribution / 'pwupd-passwd'
+install_data(pamdchfnsrc, install_dir : pamconfdir)
+install_data(pamdchshsrc, install_dir : pamconfdir)
+install_data(pamdpasswdsrc, install_dir : pamconfdir)
 
 # Unit tests
 subdir('tests')
