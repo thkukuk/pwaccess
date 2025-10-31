@@ -39,6 +39,7 @@ selinux_status(pam_handle_t *pamh)
   else
     return ", selinux=off";
 #else
+  (void)pamh;
   return "";
 #endif
 }
