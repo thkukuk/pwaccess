@@ -11,6 +11,7 @@ There are PAM modules:
 * `pam_debuginfo.so` is a simple PAM module for debugging purpose, it prints all available relevant information like PAM flags, PAM data, euid, uid, no_new_privs state, etc.
   
 There are additional utilities, which don't use the standard glibc functions to modify passwd and shadow, but `pwaccessd` and `pwupdd`:
+* chage
 * chfn
 * chsh
 * expiry
