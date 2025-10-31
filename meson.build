@@ -64,6 +64,10 @@ pamlibdir = get_option('pamlibdir')
 if pamlibdir == ''
         pamlibdir = get_option('libdir') / 'security'
 endif
+pamconfdir = get_option('pamconfdir')
+if pamconfdir == ''
+        pamconfdir = prefixdir / 'lib/pam.d'
+endif
 
 libpam = dependency('pam', required: true)
 libpam_misc = dependency('pam_misc', required: true)
@@ -202,6 +206,11 @@ subdir('include')
 
 # systemd units
 subdir('units')
+
+# example pam configuration files
+install_data('pam.d/example/pwupd-chfn', install_dir : pamconfdir)
+install_data('pam.d/example/pwupd-chsh', install_dir : pamconfdir)
+install_data('pam.d/example/pwupd-passwd', install_dir : pamconfdir)
 
 # Unit tests
 subdir('tests')

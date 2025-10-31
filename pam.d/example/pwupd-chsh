@@ -1,0 +1,7 @@
+#%PAM-1.0
+auth		sufficient	pam_rootok.so
+auth		required	pam_unix_ng.so 
+account		required	pam_unix_ng.so
+password	requisite	pam_pwquality.so        
+password	required	pam_unix_ng.so	use_authtok
+session		required	pam_unix_ng.so

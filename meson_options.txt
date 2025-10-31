@@ -2,6 +2,8 @@ option('man', type : 'feature', value : 'auto',
        description : 'build and install man pages')
 option('pamlibdir', type : 'string',
        description : 'directory for PAM modules')
+option('pamconfdir', type : 'string',
+       description : 'directory for PAM configuration')
 option('selinux', type: 'feature', value: 'auto',
        description: 'SELinux support')
 option('vendordir', type: 'string', value: '/usr/etc',
