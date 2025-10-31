@@ -41,7 +41,7 @@ static SD_VARLINK_DEFINE_METHOD(
                 SD_VARLINK_FIELD_COMMENT("The new work phone number."),
                 SD_VARLINK_DEFINE_INPUT(workPhone, SD_VARLINK_STRING, SD_VARLINK_NULLABLE),
                 SD_VARLINK_FIELD_COMMENT("The new private phone number."),
-                SD_VARLINK_DEFINE_INPUT(privatePhone, SD_VARLINK_STRING, SD_VARLINK_NULLABLE),
+                SD_VARLINK_DEFINE_INPUT(homePhone, SD_VARLINK_STRING, SD_VARLINK_NULLABLE),
                 SD_VARLINK_FIELD_COMMENT("The new other field."),
                 SD_VARLINK_DEFINE_INPUT(other, SD_VARLINK_STRING, SD_VARLINK_NULLABLE));
 

@@ -280,10 +280,10 @@ main(int argc, char **argv)
 				       SD_JSON_BUILD_PAIR_STRING("room", new_room));
   if (r >= 0 && new_work_phone)
     r = sd_json_variant_merge_objectbo(&params,
-				       SD_JSON_BUILD_PAIR_STRING("workPhone", new_full_name));
+				       SD_JSON_BUILD_PAIR_STRING("workPhone", new_work_phone));
   if (r >= 0 && new_home_phone)
     r = sd_json_variant_merge_objectbo(&params,
-				       SD_JSON_BUILD_PAIR_STRING("homePhone", new_full_name));
+				       SD_JSON_BUILD_PAIR_STRING("homePhone", new_home_phone));
   if (r >= 0 && new_other)
     r = sd_json_variant_merge_objectbo(&params,
 				       SD_JSON_BUILD_PAIR_STRING("other", new_other));
