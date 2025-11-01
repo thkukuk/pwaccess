@@ -47,8 +47,9 @@ parse_args(pam_handle_t *pamh, int flags, int argc, const char **argv,
 	  char *ep;
 	  long l;
 
+	  errno = 0;
 	  l = strtol(cp, &ep, 10);
-	  if (l == LONG_MAX || l < 0 || l > UINT32_MAX ||
+	  if (errno == ERANGE || l < 0 || l > UINT32_MAX ||
 	      cp == ep || *ep != '\0')
 	    pam_syslog(pamh, LOG_ERR, "Cannot parse 'minlen=%s'", cp);
 	  else
@@ -63,8 +64,9 @@ parse_args(pam_handle_t *pamh, int flags, int argc, const char **argv,
 	  char *ep;
 	  long long ll;
 
+	  errno = 0;
 	  ll = strtoll(cp, &ep, 10);
-	  if (ll == LLONG_MAX || ll < 0 || ll > UINT32_MAX ||
+	  if (errno == ERANGE || ll < 0 || ll > UINT32_MAX ||
 	      cp == ep || *ep != '\0')
 	    pam_syslog(pamh, LOG_ERR, "Cannot parse 'crypt_count=%s'", cp);
 	  else
@@ -75,8 +77,9 @@ parse_args(pam_handle_t *pamh, int flags, int argc, const char **argv,
 	  char *ep;
 	  long l;
 
+	  errno = 0;
 	  l = strtol(cp, &ep, 10);
-	  if (l == LONG_MAX || l < 0 || l > UINT32_MAX ||
+	  if (errno == ERANGE || l < 0 || l > UINT32_MAX ||
 	      cp == ep || *ep != '\0')
 	    pam_syslog(pamh, LOG_ERR, "Cannot parse 'fail_delay=%s'", cp);
 	  else
