@@ -1241,13 +1241,16 @@ vl_method_update_pw_sp(sd_varlink *link, sd_json_variant *parameters,
       return 0;
     }
 
-  pw = calloc(1, sizeof(struct passwd));
-  if (pw == NULL)
-    return -ENOMEM;
+  if (!sd_json_variant_is_null(p.content_passwd) && sd_json_variant_elements(p.content_passwd) > 0)
+    {
+      pw = calloc(1, sizeof(struct passwd));
+      if (pw == NULL)
+	return -ENOMEM;
 
-  r = sd_json_dispatch(p.content_passwd, dispatch_passwd_table, SD_JSON_ALLOW_EXTENSIONS, pw);
-  if (r < 0)
-    return return_errno_error(link, "Parsing JSON passwd entry", r);
+      r = sd_json_dispatch(p.content_passwd, dispatch_passwd_table, SD_JSON_ALLOW_EXTENSIONS, pw);
+      if (r < 0)
+	return return_errno_error(link, "Parsing JSON passwd entry", r);
+    }
 
   if (!sd_json_variant_is_null(p.content_shadow) && sd_json_variant_elements(p.content_shadow) > 0)
     {
@@ -1263,10 +1266,12 @@ vl_method_update_pw_sp(sd_varlink *link, sd_json_variant *parameters,
   /* XXX check that pw->pw_name and sp->sp_namp are identical if both
      are provided */
 
-  r = update_passwd(pw, NULL);
-  if (r < 0)
-    return return_errno_error(link, "Update of passwd", r);
-
+  if (pw)
+    {
+      r = update_passwd(pw, NULL);
+      if (r < 0)
+	return return_errno_error(link, "Update of passwd", r);
+    }
   if (sp)
     {
       r = update_shadow(sp, NULL);
