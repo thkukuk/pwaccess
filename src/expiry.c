@@ -14,7 +14,7 @@
 static void
 print_usage(FILE *stream)
 {
-  fprintf(stream, "Usage: expiry [-c|-f] [--help] [--version]\n");
+  fprintf(stream, "Usage: expiry [-c|-f] [user] [--help] [--version]\n");
 }
 
 static void
@@ -85,26 +85,38 @@ main(int argc, char **argv)
   argc -= optind;
   argv += optind;
 
-  if (argc > 0)
+  if (argc > 1)
     {
       fprintf(stderr, "expiry: too many arguments.\n");
       print_error();
-      return 1;
+      return EINVAL;
     }
   if (cflg+fflg > 1)
     {
       fprintf(stderr, "expiry: options -c and -f conflict.\n");
       print_error();
-      return 1;
+      return EINVAL;
     }
 
   /* common for -c and -f */
-  r = pwaccess_get_account_name(getuid(), &user, &error);
-  if (r < 0)
+  if (argc == 1)
     {
-      fprintf(stderr, "Get account name failed: %s\n",
-	      error?error:strerror(-r));
-      return -r;
+      user = strdup(argv[0]);
+      if (!user)
+	{
+	  fprintf(stderr, "Out of memory!\n");
+	  return ENOMEM;
+	}
+    }
+  else
+    {
+      r = pwaccess_get_account_name(getuid(), &user, &error);
+      if (r < 0)
+	{
+	  fprintf(stderr, "Get account name failed: %s\n",
+		  error?error:strerror(-r));
+	  return -r;
+	}
     }
 
   r = pwaccess_check_expired(user, &daysleft,
