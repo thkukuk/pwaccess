@@ -1,6 +1,6 @@
-# pwaccess
+# account-utils
 
-The pwaccess package contains the utilities and services to do user management and authentication without the need for setuid/setgid bits. This allows the stack to work with `NoNewPrivs` enabled (means setuid/setgid binaries will no longer work). Communication happens via [varlink](https://varlink.org).
+The account-utils package contains the utilities and services to do user management and authentication without the need for setuid/setgid bits. This allows the stack to work with `NoNewPrivs` enabled (means setuid/setgid binaries will no longer work). Communication happens via [varlink](https://varlink.org).
 
 There are two services:
 * `pwaccessd` is a systemd socket activated service which provides account information in `passwd` and `shadow` format, checks if the password or account is expired and verifies the password. Normal users have only access to their own passwd and shadow entry, root has access to all accounts.
