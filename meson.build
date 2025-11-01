@@ -1,5 +1,5 @@
 project(
-  'pwaccess',
+  'account-utils',
   'c',
   meson_version : '>= 0.61.0',
   default_options : [
@@ -23,10 +23,10 @@ endif
 conf = configuration_data()
 conf.set_quoted('VERSION', meson.project_version())
 conf.set_quoted('PACKAGE', meson.project_name())
-conf.set_quoted('_VARLINK_PWACCESS_SOCKET_DIR', '/run/pwaccess')
-conf.set_quoted('_VARLINK_PWACCESS_SOCKET', '/run/pwaccess/socket')
-conf.set_quoted('_VARLINK_PWUPD_SOCKET_DIR', '/run/pwaccess')
-conf.set_quoted('_VARLINK_PWUPD_SOCKET', '/run/pwaccess/pwupd-socket')
+conf.set_quoted('_VARLINK_PWACCESS_SOCKET_DIR', '/run/account')
+conf.set_quoted('_VARLINK_PWACCESS_SOCKET', '/run/account/pwaccess-socket')
+conf.set_quoted('_VARLINK_PWUPD_SOCKET_DIR', '/run/account')
+conf.set_quoted('_VARLINK_PWUPD_SOCKET', '/run/account/pwupd-socket')
 conf.set_quoted('_PATH_VENDORDIR', get_option('vendordir'))
 
 cc = meson.get_compiler('c')

@@ -4,7 +4,7 @@ After=local-fs.target
 Before=sockets.target
 
 [Socket]
-ListenStream=/run/pwaccess/pwupd-socket
+ListenStream=/run/account/pwupd-socket
 FileDescriptorName=varlink
 SocketMode=0666
 DirectoryMode=0755

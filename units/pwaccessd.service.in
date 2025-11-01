@@ -1,5 +1,5 @@
 [Unit]
-Description=pwaccess daemon
+Description=Daemon to access passwd, shadow and for authentication
 Documentation=man:pwaccessd(8)
 
 [Service]
@@ -23,7 +23,7 @@ ProtectKernelTunables=yes
 ProtectProc=invisible
 ProtectSystem=strict
 RestrictRealtime=true
-ReadWritePaths=/run/pwaccess /etc
+ReadWritePaths=/run/account /etc
 RestrictAddressFamilies=AF_UNIX
 RestrictNamespaces=yes
 RestrictRealtime=yes

@@ -3,7 +3,7 @@ Description=pwaccess daemon socket
 Documentation=man:pwaccessd(8)
 
 [Socket]
-ListenStream=/run/pwaccess/socket
+ListenStream=/run/account/pwaccess-socket
 FileDescriptorName=varlink
 SocketMode=0666
 DirectoryMode=0755
