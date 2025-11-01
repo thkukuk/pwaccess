@@ -147,7 +147,7 @@ executable('pwupdd',
            install_dir : libexecdir,
            install : true)
 
-executable('chage', 'src/chage.c',
+executable('chage', 'src/chage.c', 'src/get_value.c',
            include_directories : inc,
            link_with : [libcommon, libpwaccess],
            dependencies : [libsystemd, libpam, libpam_misc, libeconf],

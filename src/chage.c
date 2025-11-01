@@ -14,6 +14,7 @@
 #include "basics.h"
 #include "pwaccess.h"
 #include "varlink-client-common.h"
+#include "get_value.h"
 
 #define DAY (24L*3600L)
 #define SCALE DAY
@@ -41,7 +42,7 @@ getdef_num(const char *key, long def)
                            "#" /* comment */);
   if (error != ECONF_SUCCESS)
     {
-      fprintf(stderr, "Cannot parse login.defs: %s", econf_errString(error));
+      fprintf(stderr, "Cannot parse login.defs: %s\n", econf_errString(error));
       return def;
     }
 
@@ -65,6 +66,9 @@ str2date(const char *str)
   char *cp;
   time_t result;
 
+  if (streq(str, "1969-12-31"))
+    return -1;
+
   memset(&tp, 0, sizeof tp);
   cp = strptime(str, "%Y-%m-%d", &tp);
   if (!cp || *cp != '\0')
@@ -77,6 +81,23 @@ str2date(const char *str)
   return (result + (DAY/2)) / DAY;
 }
 
+/* convert time_t into a readable date string.  */
+static char *
+date2str(time_t date)
+{
+  struct tm *tp;
+  char buf[20];
+
+  tp = gmtime(&date);
+  if (strftime(buf, sizeof(buf), "%Y-%m-%d", tp) == 0)
+    {
+      fprintf(stderr, "strftime failed!\n");
+      return NULL;
+    }
+  return strdup(buf);
+}
+
+
 /* Print the time in a human readable format.  */
 static void
 print_date(time_t date, bool iso8601)
@@ -87,7 +108,7 @@ print_date(time_t date, bool iso8601)
   tp = gmtime(&date);
   if (strftime(buf, sizeof buf, iso8601?"%F":"%b %d, %Y", tp) == 0)
     {
-      puts("strftime failed!");
+      fprintf(stderr, "strftime failed!\n");
       return;
     }
   puts(buf);
@@ -296,13 +317,13 @@ main(int argc, char **argv)
   _cleanup_(struct_shadow_freep) struct spwd *sp = NULL;
   _cleanup_free_ char *error = NULL;
   bool complete = false;
-  const char *user = NULL;
-  const char *expiredate = NULL;
-  const char *inactive = NULL;
-  const char *lastday = NULL;
-  const char *maxdays = NULL;
-  const char *mindays = NULL;
-  const char *warndays = NULL;
+  char *user = NULL;
+  char *expiredate = NULL;
+  char *inactive = NULL;
+  char *lastday = NULL;
+  char *maxdays = NULL;
+  char *mindays = NULL;
+  char *warndays = NULL;
   int i_flag = 0;
   int l_flag = 0;
   int r;
@@ -414,6 +435,12 @@ main(int argc, char **argv)
   if (l_flag)
     return print_shadow_info(user, sp, i_flag);
 
+  if (getuid() != 0)
+    {
+      fprintf(stderr, "Permission denied.\n");
+      return EPERM;
+    }
+
   /* create default shadow entry if there is none */
   bool pw_changed = false;
   char *ep;
@@ -443,38 +470,119 @@ main(int argc, char **argv)
     }
 
   /* Use user provided values */
-  if (expiredate || inactive || lastday || maxdays || mindays || warndays)
+  if (!(expiredate || inactive || lastday || maxdays || mindays || warndays))
     {
+      char buf[80];
 
-      if (mindays)
+      /* XXX consolidate in a single function */
+      snprintf(buf, sizeof(buf), "%ld", sp->sp_min);
+      r = get_value(buf, "Minimum password age", &mindays);
+      if (r < 0)
+	return -r;
+      if (mindays == NULL)
 	{
-	  long l;
+	  fprintf(stderr, "chage aborted.\n");
+	  return ENODATA;
+	}
+      snprintf(buf, sizeof(buf), "%ld", sp->sp_max);
+      r = get_value(buf, "Maximum password age", &maxdays);
+      if (r < 0)
+	return -r;
+      if (maxdays == NULL)
+	{
+	  fprintf(stderr, "chage aborted.\n");
+	  return ENODATA;
+	}
+      if (sp->sp_lstchg == -1)
+	strcpy(buf, "-1");
+      else
+	{
+	  _cleanup_free_ char *p = NULL;
 
-	  errno = 0;
-	  l = strtol(mindays, &ep, 10);
-	  if (errno == ERANGE || l < -1 || mindays == ep || *ep != '\0')
-	    {
-	      fprintf(stderr, "Cannot parse 'mindays=%s'n", mindays);
-	      return EINVAL;
-	    }
+	  p = date2str(sp->sp_lstchg*SCALE);
+	  if (p != NULL)
+	    strlcpy(buf, p, sizeof(buf));
+	  else
+	    strcpy(buf, "-1");
+	}
+      r = get_value(buf, "Last password change (YYYY-MM-DD)", &lastday);
+      if (r < 0)
+	return -r;
+      if (lastday == NULL)
+	{
+	  fprintf(stderr, "chage aborted.\n");
+	  return ENODATA;
+	}
+      snprintf(buf, sizeof(buf), "%ld", sp->sp_warn);
+      r = get_value(buf, "Password warning period", &warndays);
+      if (r < 0)
+	return -r;
+      if (warndays == NULL)
+	{
+	  fprintf(stderr, "chage aborted.\n");
+	  return ENODATA;
+	}
+      snprintf(buf, sizeof(buf), "%ld", sp->sp_inact);
+      r = get_value(buf, "Password inactivity period", &inactive);
+      if (r < 0)
+	return -r;
+      if (inactive == NULL)
+	{
+	  fprintf(stderr, "chage aborted.\n");
+	  return ENODATA;
+	}
+      if (sp->sp_expire == -1)
+	strcpy(buf, "-1");
+      else
+	{
+	  _cleanup_free_ char *p = NULL;
+
+	  p = date2str(sp->sp_expire*SCALE);
+	  if (p != NULL)
+	    strlcpy(buf, p, sizeof(buf));
+	  else
+	    strcpy(buf, "-1");
+	}
+      r = get_value(buf, "Account expires (YYYY-MM-DD)", &expiredate);
+      if (r < 0)
+	return -r;
+      if (expiredate == NULL)
+	{
+	  fprintf(stderr, "chage aborted.\n");
+	  return ENODATA;
+	}
+    }
+
+  /* values are provided as option or asked for */
+  if (mindays)
+    {
+      long l;
+
+      errno = 0;
+      l = strtol(mindays, &ep, 10);
+      if (errno == ERANGE || l < -1 || mindays == ep || *ep != '\0')
+	{
+	  fprintf(stderr, "Cannot parse 'mindays=%s'\n", mindays);
+	  return EINVAL;
+	}
 	  sp->sp_min = l;
-	}
+    }
 
-      if (maxdays)
+  if (maxdays)
+    {
+      long l;
+
+      errno = 0;
+      l = strtol(maxdays, &ep, 10);
+      if (errno == ERANGE || l < -1 || maxdays == ep || *ep != '\0')
 	{
-	  long l;
-
-	  errno = 0;
-	  l = strtol(maxdays, &ep, 10);
-	  if (errno == ERANGE || l < -1 || maxdays == ep || *ep != '\0')
-	    {
-	      fprintf(stderr, "Cannot parse 'maxdays=%s'n", maxdays);
-	      return EINVAL;
-	    }
-	  sp->sp_max = l;
+	  fprintf(stderr, "Cannot parse 'maxdays=%s'\n", maxdays);
+	  return EINVAL;
 	}
+	  sp->sp_max = l;
+    }
 
-      if (warndays)
+  if (warndays)
 	{
 	  long l;
 
@@ -482,77 +590,69 @@ main(int argc, char **argv)
 	  l = strtol(warndays, &ep, 10);
 	  if (errno == ERANGE || l < -1 || warndays == ep || *ep != '\0')
 	    {
-	      fprintf(stderr, "Cannot parse 'warndays=%s'n", warndays);
+	      fprintf(stderr, "Cannot parse 'warndays=%s'\n", warndays);
 	      return EINVAL;
 	    }
 	  sp->sp_warn = l;
 	}
 
-      if (inactive)
-	{
-	  long l;
-
-	  errno = 0;
-	  l = strtol(inactive, &ep, 10);
-	  if (errno == ERANGE || l < -1 || inactive == ep || *ep != '\0')
-	    {
-	      fprintf(stderr, "Cannot parse 'inactive=%s'n", inactive);
-	      return EINVAL;
-	    }
-	  sp->sp_inact = l;
-	}
-
-      if (lastday)
-	{
-          if (streq(lastday, "1969-12-31"))
-            sp->sp_lstchg = -1;
-          else
-            {
-              sp->sp_lstchg = str2date (lastday);
-              if (sp->sp_lstchg == -1)
-                {
-		  long l;
-
-		  errno = 0;
-		  l = strtol(lastday, &ep, 10);
-		  if (errno == ERANGE || l < -1 || lastday == ep || *ep != '\0')
-		    {
-		      fprintf(stderr, "Cannot parse 'lastday=%s'n", lastday);
-		      return EINVAL;
-		    }
-		  sp->sp_lstchg = l;
-                }
-            }
-        }
-      if (expiredate)
-	{
-          if (streq(expiredate, "1969-12-31"))
-            sp->sp_expire = -1;
-          else
-            {
-              sp->sp_expire = str2date (expiredate);
-              if (sp->sp_expire == -1)
-                {
-		  long l;
-
-		  errno = 0;
-		  l = strtol(expiredate, &ep, 10);
-		  if (errno == ERANGE || l < -1 || expiredate == ep || *ep != '\0')
-		    {
-		      fprintf(stderr, "Cannot parse 'expiredate=%s'n", expiredate);
-		      return EINVAL;
-		    }
-		  sp->sp_expire = l;
-                }
-            }
-        }
-
-    }
-  else
+  if (inactive)
     {
-      /* XXX ask for input */
-      print_usage(stderr);
-      return EINVAL;
+      long l;
+
+      errno = 0;
+      l = strtol(inactive, &ep, 10);
+      if (errno == ERANGE || l < -1 || inactive == ep || *ep != '\0')
+	{
+	  fprintf(stderr, "Cannot parse 'inactive=%s'\n", inactive);
+	  return EINVAL;
+	}
+      sp->sp_inact = l;
+    }
+
+  if (lastday)
+    {
+      if (streq(lastday, "1969-12-31"))
+	sp->sp_lstchg = -1;
+      else
+	{
+	  sp->sp_lstchg = str2date(lastday);
+	  if (sp->sp_lstchg == -1)
+	    {
+	      long l;
+
+	      errno = 0;
+	      l = strtol(lastday, &ep, 10);
+	      if (errno == ERANGE || l < -1 || lastday == ep || *ep != '\0')
+		{
+		  fprintf(stderr, "Cannot parse 'lastday=%s'\n", lastday);
+		  return EINVAL;
+		}
+	      sp->sp_lstchg = l;
+	    }
+	}
+    }
+  if (expiredate)
+    {
+      if (streq(expiredate, "1969-12-31"))
+	sp->sp_expire = -1;
+      else
+	{
+	  sp->sp_expire = str2date(expiredate);
+	  if (sp->sp_expire == -1)
+	    {
+	      long l;
+
+	      errno = 0;
+	      l = strtol(expiredate, &ep, 10);
+	      if (errno == ERANGE || l < -1 || expiredate == ep || *ep != '\0')
+		{
+		  fprintf(stderr, "Cannot parse 'expiredate=%s'\n", expiredate);
+		  return EINVAL;
+		}
+	      sp->sp_expire = l;
+	    }
+	}
     }
 
   return update_account(pw_changed?pw:NULL, sp);
