@@ -11,9 +11,16 @@ custom_man_xsl = files('custom-man.xsl')
 
 xslt_cmd = [xsltproc_exe, '-o', '@OUTPUT0@'] + xsltproc_flags
 
-mandir8 = get_option('mandir') /'man8'
+mandir1 = get_option('mandir') / 'man1'
+mandir8 = get_option('mandir') / 'man8'
 
 if xsltproc_exe.found()
+custom_target('chage.1',
+              input : 'chage.1.xml',
+              output : 'chage.1',
+              command : xslt_cmd + [custom_man_xsl, '@INPUT@'],
+              install : want_man,
+              install_dir : mandir1)
 custom_target('pam_unix_ng.8',
               input : 'pam_unix_ng.8.xml',
               output : 'pam_unix_ng.8',

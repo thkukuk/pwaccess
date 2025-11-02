@@ -1,0 +1,205 @@
+<refentry xmlns="http://docbook.org/ns/docbook" version="5.0" xml:id="chage">
+  <refmeta>
+    <refentrytitle>chage</refentrytitle>
+    <manvolnum>1</manvolnum>
+    <refmiscinfo class="source">account-utils %version%</refmiscinfo>
+    <refmiscinfo class="manual">chage</refmiscinfo>
+  </refmeta>
+
+  <refnamediv>
+    <refname>chage</refname>
+    <refpurpose>change user password expiry information</refpurpose>
+  </refnamediv>
+
+  <refsynopsisdiv>
+    <cmdsynopsis sepchar=" ">
+      <command>chage</command>
+      <arg choice="opt" rep="repeat">
+        option
+      </arg>
+      <arg choice="opt" rep="norepeat">
+	user
+      </arg>
+    </cmdsynopsis>
+  </refsynopsisdiv>
+
+  <refsect1>
+    <title>DESCRIPTION</title>
+    <para>
+      <command>chage</command> is used to list and change
+      the password expiry information of a user. It allows the system
+      administrator to change the number of days between allowed and
+      required password changes and the date of the last password change.
+      It allows also to define when an account will expire. The
+      <command>chage</command> command is restricted to
+      the system administrator, except for the
+      <option>-l</option> option, which may be used by
+      an user to determine when his password or account is due to expire.
+    </para>
+    <para>
+      If no option is given, <command>chage</command>
+      operates in an interactive mode, prompting the user with the current
+      values for all of the fields. Enter the new value to change the
+      field, or leave the line blank to use the current value. If the
+      users exists in the local
+      <citerefentry>
+	<refentrytitle>passwd</refentrytitle><manvolnum>5</manvolnum>
+      </citerefentry> file, but not in the local
+      <citerefentry>
+	<refentrytitle>shadow</refentrytitle><manvolnum>5</manvolnum>
+      </citerefentry> file, chage will create a new entry in the
+      <filename>shadow</filename> file.
+    </para>
+  </refsect1>
+
+  <refsect1>
+    <title>OPTIONS</title>
+    <variablelist>
+      <varlistentry>
+	<term>
+          <option>-l, --list</option>
+	</term>
+	<listitem>
+          <para>
+            This option will list the password expiry information in a
+            human readable format. The user will see the date when he
+            changed the password the last time, when the password will be
+            expire, when the password will be locked and when the account
+            will expire.
+          </para>
+	</listitem>
+      </varlistentry>
+      <varlistentry>
+	<term>
+          <option>-m, --mindays</option> <replaceable>#days</replaceable>
+	</term>
+	<listitem>
+          <para>
+            With this option the minimum number of days between password
+            changes is changed. A value of zero for this field indicates
+            that the user may change her password at any time. Else the
+            user will not be permitted to change the password until
+            minimum number of days have elapsed.
+          </para>
+	</listitem>
+      </varlistentry>
+      <varlistentry>
+	<term>
+          <option>-M, --maxdays</option> <replaceable>#days</replaceable>
+	</term>
+	<listitem>
+          <para>
+            With this option the maximum number of days during which a
+            password is valid is changed. When
+            <emphasis>maxdays</emphasis> plus <emphasis>lastday</emphasis>
+            is less than the current day, the user will be required to
+            change his password before being able to use the account.
+          </para>
+	</listitem>
+      </varlistentry>
+      <varlistentry>
+	<term>
+          <option>-d, --lastday</option> <replaceable>date</replaceable>
+	</term>
+	<listitem>
+          <para>
+            With this option the date when the password was last changed
+            can be set to another value. <emphasis>lastday</emphasis> has
+            to be specified as number of days since January 1st, 1970. The
+            date may also be expressed in the format YYYY-MM-DD. If
+            supported by the system, a value of zero forces the user to
+            change the password at next login.
+          </para>
+	</listitem>
+      </varlistentry>
+      <varlistentry>
+	<term>
+          <option>-E, --expiredate</option> <replaceable>expiredate</replaceable>
+	</term>
+	<listitem>
+          <para>
+            With this option the date when the account will be expired can
+            be changed. The expire <emphasis>date</emphasis> has to be
+            specified as number of days since January 1st, 1970. The date
+            may also be expressed in the format YYYY-MM-DD.
+          </para>
+	</listitem>
+      </varlistentry>
+      <varlistentry>
+	<term>
+          <option>-I, --inactive</option> <replaceable>#days</replaceable>
+	</term>
+	<listitem>
+          <para>
+            This option is used to set the number of days of inactivity
+            after a password has expired before the account is locked. A
+            user whose account is locked must contact the system
+            administrator before being able to use the account again. A
+            value of -1 disables this feature.
+          </para>
+	</listitem>
+      </varlistentry>
+      <varlistentry>
+	<term>
+          <option>-W, --warndays</option> <replaceable>#days</replaceable>
+	</term>
+	<listitem>
+          <para>
+            With this option the number of days of warning before a
+            password change is required can be changed. This option is the
+            number of days prior to the password expiring that a user will
+            be warned the password is about to expire.
+          </para>
+	</listitem>
+      </varlistentry>
+    </variablelist>
+  </refsect1>
+
+  <refsect1>
+    <title>FILES</title>
+    <variablelist>
+      <varlistentry>
+        <term>/etc/passwd</term>
+        <listitem>
+          <para>user account information</para>
+        </listitem>
+      </varlistentry>
+    </variablelist>
+    <variablelist>
+      <varlistentry>
+        <term>/etc/shadow</term>
+        <listitem>
+          <para>shadow user account information</para>
+        </listitem>
+      </varlistentry>
+    </variablelist>
+  </refsect1>
+
+  <refsect1>
+    <title>SEE ALSO</title>
+    <para>
+      <citerefentry>
+        <refentrytitle>pwaccessd</refentrytitle><manvolnum>8</manvolnum>
+      </citerefentry>,
+      <citerefentry>
+        <refentrytitle>pwupd</refentrytitle><manvolnum>8</manvolnum>
+      </citerefentry>,
+      <citerefentry>
+        <refentrytitle>passwd</refentrytitle><manvolnum>1</manvolnum>
+      </citerefentry>,
+      <citerefentry>
+        <refentrytitle>passwd</refentrytitle><manvolnum>5</manvolnum>
+      </citerefentry>,
+      <citerefentry>
+        <refentrytitle>shadow</refentrytitle><manvolnum>5</manvolnum>
+      </citerefentry>
+    </para>
+  </refsect1>
+
+  <refsect1>
+    <title>AUTHOR</title>
+    <para>
+      chage was written by Thorsten Kukuk &lt;kukuk@suse.com&gt;.
+    </para>
+  </refsect1>
+</refentry>
