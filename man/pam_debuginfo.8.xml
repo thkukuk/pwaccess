@@ -1,0 +1,100 @@
+<refentry xmlns="http://docbook.org/ns/docbook" version="5.0" xml:id="pam_debuginfo">
+  <refmeta>
+    <refentrytitle>pam_debuginfo</refentrytitle>
+    <manvolnum>8</manvolnum>
+    <refmiscinfo class="source">account-utils %version%</refmiscinfo>
+    <refmiscinfo class="manual">pam_debuginfo</refmiscinfo>
+  </refmeta>
+
+  <refnamediv>
+    <refname>pam_debuginfo</refname>
+    <refpurpose>PAM module logging information for debugging</refpurpose>
+  </refnamediv>
+
+  <refsynopsisdiv>
+    <cmdsynopsis sepchar=" ">
+      <command>pam_debuginfo.so</command>
+    </cmdsynopsis>
+  </refsynopsisdiv>
+
+  <refsect1>
+    <title>DESCRIPTION</title>
+    <para>
+      This is a PAM module which logs a lot of useful information for
+      debugging. It logs the following information:
+    </para>
+    <itemizedlist>
+      <listitem><para>Service name</para></listitem>
+      <listitem><para>PAM type</para></listitem>
+      <listitem><para>PAM flags</para></listitem>
+      <listitem><para>UID</para></listitem>
+      <listitem><para>EUID</para></listitem>
+      <listitem><para>PAM items</para></listitem>
+      <listitem><para>SELinux status</para></listitem>
+      <listitem><para>NoNewPrivs status</para></listitem>
+    </itemizedlist>
+  </refsect1>
+
+  <refsect1>
+    <title>MODULE TYPES PROVIDED</title>
+    <para>
+      All module types (<option>account</option>, <option>auth</option>,
+      <option>password</option>, <option>session</option>) are provided.
+    </para>
+  </refsect1>
+
+  <refsect1>
+    <title>RETURN VALUES</title>
+    <para>
+      <variablelist>
+        <varlistentry>
+          <term>PAM_IGNORE</term>
+          <listitem>
+            <para>
+              Returned by all service types.
+            </para>
+          </listitem>
+        </varlistentry>
+      </variablelist>
+    </para>
+  </refsect1>
+
+  <refsect1>
+    <title>EXAMPLES</title>
+    <para>
+      Add the following line to e.g. <filename>/etc/pam.d/login</filename> to
+      log all information via
+      <citerefentry>
+        <refentrytitle>syslog</refentrytitle><manvolnum>8</manvolnum>
+      </citerefentry>:
+    </para>
+    <programlisting>
+      auth     optional  pam_debuginfo.so
+      account  optional  pam_debuginfo.so
+      password optional  pam_debuginfo.so
+      session  optional  pam_debuginfo.so
+    </programlisting>
+  </refsect1>
+
+  <refsect1>
+    <title>SEE ALSO</title>
+    <para>
+      <citerefentry>
+	<refentrytitle>pam.conf</refentrytitle><manvolnum>5</manvolnum>
+      </citerefentry>,
+      <citerefentry>
+	<refentrytitle>pam.d</refentrytitle><manvolnum>5</manvolnum>
+      </citerefentry>,
+      <citerefentry>
+        <refentrytitle>pam</refentrytitle><manvolnum>8</manvolnum>
+      </citerefentry>
+    </para>
+  </refsect1>
+
+  <refsect1>
+    <title>AUTHOR</title>
+    <para>
+      pam_debuginfo was written by Thorsten Kukuk &lt;kukuk@suse.com&gt;.
+    </para>
+  </refsect1>
+</refentry>

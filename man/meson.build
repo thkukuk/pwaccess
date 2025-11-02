@@ -20,4 +20,10 @@ custom_target('pam_unix_ng.8',
               command : xslt_cmd + [custom_man_xsl, '@INPUT@'],
               install : want_man,
               install_dir : mandir8)
+custom_target('pam_debuginfo.8',
+              input : 'pam_debuginfo.8.xml',
+              output : 'pam_debuginfo.8',
+              command : xslt_cmd + [custom_man_xsl, '@INPUT@'],
+              install : want_man,
+              install_dir : mandir8)
 endif

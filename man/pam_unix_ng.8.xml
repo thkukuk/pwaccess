@@ -2,7 +2,7 @@
   <refmeta>
     <refentrytitle>pam_unix_ng</refentrytitle>
     <manvolnum>8</manvolnum>
-    <refmiscinfo class="source">pwaccess %version%</refmiscinfo>
+    <refmiscinfo class="source">account-utils %version%</refmiscinfo>
     <refmiscinfo class="manual">pam_unix_ng</refmiscinfo>
   </refmeta>
 
