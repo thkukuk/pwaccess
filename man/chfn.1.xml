@@ -1,0 +1,216 @@
+<refentry xmlns="http://docbook.org/ns/docbook" version="5.0" xml:id="chfn">
+  <refmeta>
+    <refentrytitle>chfn</refentrytitle>
+    <manvolnum>1</manvolnum>
+    <refmiscinfo class="source">account-utils %version%</refmiscinfo>
+    <refmiscinfo class="manual">chfn</refmiscinfo>
+  </refmeta>
+
+  <refnamediv>
+    <refname>chfn</refname>
+    <refpurpose>change finger information</refpurpose>
+  </refnamediv>
+
+  <refsynopsisdiv>
+    <cmdsynopsis sepchar=" ">
+      <command>chfn</command>
+      <arg choice="opt" rep="repeat">
+        option
+      </arg>
+      <arg choice="opt" rep="norepeat">
+        user
+      </arg>
+    </cmdsynopsis>
+  </refsynopsisdiv>
+
+  <refsect1>
+    <title>DESCRIPTION</title>
+    <para>
+      <command>chfn</command> is used to change the user finger information.
+      This are the users fullname, office room number, office phone number
+      and home phone number. This information is stored in the
+      <filename>/etc/passwd</filename> file and typically printed by
+      tools like
+      <citerefentry>
+	<refentrytitle>finger</refentrytitle><manvolnum>1</manvolnum>
+      </citerefentry> or
+      <citerefentry>
+	<refentrytitle>pinky</refentrytitle><manvolnum>1</manvolnum>
+      </citerefentry> and similiar programs. A normal user may only change
+      the fields for their own account, the super user may change the fields
+      for any account. Also, only the super user may use the
+      <option>-o</option> option to change the <emphasis>other</emphasis>
+      portions of the GECOS field.
+    </para>
+    <para>
+      If no information is given on the command line,
+      <command>chfn</command> operates in an interactive fashion, prompting
+      the user for each field. Enter the new value to change the field, or
+      leave the line blank to use the current value.
+      Enter <emphasis>none</emphasis> or a blank only to remove the
+      old value. The current value is displayed between a pair of
+      <emphasis>[...]</emphasis> marks.
+    </para>
+    <para>
+      The only restrictions placed on the contents of the fields is that
+      no control characters may be present, nor any of comma, colon, or
+      equal sign. The <emphasis>other</emphasis> field does not have this
+      restriction.
+    </para>
+    <para>
+      This implementation does not require the setuid bit set, instead
+      it will communicate via varlink protocol with
+      <citerefentry>
+	<refentrytitle>pwaccessd</refentrytitle><manvolnum>8</manvolnum>
+      </citerefentry> and
+      <citerefentry>
+	<refentrytitle>pwupd</refentrytitle><manvolnum>8</manvolnum>
+      </citerefentry> to read and modify the account data.
+    </para>
+  </refsect1>
+
+  <refsect1>
+    <title>OPTIONS</title>
+    <variablelist>
+      <varlistentry>
+	<term>
+          <option>-f, --full-name</option>
+	</term>
+	<listitem>
+          <para>
+            Specify the user's real name.
+          </para>
+	</listitem>
+      </varlistentry>
+      <varlistentry>
+	<term>
+          <option>-o, --office</option>
+	</term>
+	<listitem>
+          <para>
+            Specify the user's office room number.
+          </para>
+	</listitem>
+      </varlistentry>
+      <varlistentry>
+	<term>
+          <option>-p, --phone</option>
+	</term>
+	<listitem>
+          <para>
+            Specify the user's office phone number.
+          </para>
+	</listitem>
+      </varlistentry>
+      <varlistentry>
+	<term>
+          <option>-h, --home-phone</option>
+	</term>
+	<listitem>
+          <para>
+            Specify the user's home phone number.
+          </para>
+	</listitem>
+      </varlistentry>
+      <varlistentry>
+	<term>
+          <option>-o, --other</option>
+	</term>
+	<listitem>
+          <para>
+            Specify the <emphasis>other</emphasis> portion of the GECOS field.
+          </para>
+	</listitem>
+      </varlistentry>
+      <varlistentry>
+	<term>
+          <option>-u, --help</option>
+	</term>
+	<listitem>
+          <para>
+            Print a more verbose help text and exit.
+          </para>
+	</listitem>
+      </varlistentry>
+      <varlistentry>
+	<term>
+          <option>-v, --version</option>
+	</term>
+	<listitem>
+          <para>
+            Print version information and exit.
+          </para>
+	</listitem>
+      </varlistentry>
+    </variablelist>
+  </refsect1>
+
+  <refsect1>
+    <title>CONFIGURATION</title>
+    <para>
+      The following configuration variables provided by
+      <citerefentry>
+        <refentrytitle>login.defs</refentrytitle><manvolnum>5</manvolnum>
+      </citerefentry>
+      define the behavior of the <command>chfn</command> command:
+    </para>
+    <variablelist>
+      <varlistentry>
+	<term>
+          <option>CHFN_RESTRICT</option>
+	</term>
+	<listitem>
+          <para>
+	    This parameter specifies which values in the
+	    <emphasis>GECOS</emphasis> field may be changed by regular users
+	    using the <command>chfn</command> program. It can be any
+	    combination of letters <option>f</option>, <option>r</option>,
+	    <option>w</option>, <option>h</option> and <option>o</option>
+	    for <emphasis>F</emphasis>ull name, <emphasis>R</emphasis>oom
+	    number, <emphasis>W</emphasis>ork phone,
+	    <emphasis>H</emphasis>ome phone and <emphasis>O</emphasis>ther.
+	    Only the superuser can make changes if not specified.
+          </para>
+	</listitem>
+      </varlistentry>
+    </variablelist>
+  </refsect1>
+
+  <refsect1>
+    <title>FILES</title>
+    <variablelist>
+      <varlistentry>
+        <term>/etc/passwd</term>
+        <listitem>
+          <para>user account information</para>
+        </listitem>
+      </varlistentry>
+    </variablelist>
+  </refsect1>
+
+  <refsect1>
+    <title>SEE ALSO</title>
+    <para>
+      <citerefentry>
+        <refentrytitle>pwaccessd</refentrytitle><manvolnum>8</manvolnum>
+      </citerefentry>,
+      <citerefentry>
+        <refentrytitle>pwupd</refentrytitle><manvolnum>8</manvolnum>
+      </citerefentry>,
+      <citerefentry>
+        <refentrytitle>finger</refentrytitle><manvolnum>1</manvolnum>
+      </citerefentry>,
+      <citerefentry>
+        <refentrytitle>pinky</refentrytitle><manvolnum>1</manvolnum>
+      </citerefentry>,
+      <citerefentry>
+        <refentrytitle>passwd</refentrytitle><manvolnum>5</manvolnum>
+      </citerefentry>,
+      <citerefentry>
+        <refentrytitle>login.defs</refentrytitle><manvolnum>5</manvolnum>
+      </citerefentry>
+    </para>
+  </refsect1>
+
+
+</refentry>
