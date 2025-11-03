@@ -1,0 +1,114 @@
+<refentry xmlns="http://docbook.org/ns/docbook" version="5.0" xml:id="expiry">
+  <refmeta>
+    <refentrytitle>expiry</refentrytitle>
+    <manvolnum>1</manvolnum>
+    <refmiscinfo class="source">account-utils %version%</refmiscinfo>
+    <refmiscinfo class="manual">expiry</refmiscinfo>
+  </refmeta>
+
+  <refnamediv>
+    <refname>expiry</refname>
+    <refpurpose>check password expiration and enforce password change</refpurpose>
+  </refnamediv>
+
+  <refsynopsisdiv>
+    <cmdsynopsis sepchar=" ">
+      <command>expiry</command>
+      <arg choice="plain" rep="norepeat">
+        -c|-f
+      </arg>
+      <arg choice="opt" rep="norepeat">
+        user
+      </arg>
+    </cmdsynopsis>
+  </refsynopsisdiv>
+
+  <refsect1>
+    <title>DESCRIPTION</title>
+    <para>
+      <command>expiry</command> checks the current password expiration
+      and prints a warning if the password is expiring or enforces a
+      change when required.
+    </para>
+    <para>
+      This implementation does not require the setuid bit set, instead
+      it will communicate via varlink protocol with
+      <citerefentry>
+        <refentrytitle>pwaccessd</refentrytitle><manvolnum>8</manvolnum>
+      </citerefentry> and
+      <citerefentry>
+        <refentrytitle>pwupd</refentrytitle><manvolnum>8</manvolnum>
+      </citerefentry> to read and modify the account data.
+    </para>
+  </refsect1>
+
+  <refsect1>
+    <title>OPTIONS</title>
+    <variablelist>
+      <varlistentry>
+	<term>
+          <option>-c, --check</option>
+	</term>
+	<listitem>
+          <para>
+	    Print number of days when password expires for the caller or
+	    the specified <option>user</option>.
+          </para>
+	</listitem>
+      </varlistentry>
+      <varlistentry>
+	<term>
+          <option>-f, --force</option>
+	</term>
+	<listitem>
+          <para>
+            The caller or <option>user</option> is forced to change the
+	    password if it is expired but not inactive.
+          </para>
+	</listitem>
+      </varlistentry>
+    </variablelist>
+  </refsect1>
+
+  <refsect1>
+    <title>FILES</title>
+    <variablelist>
+      <varlistentry>
+        <term>/etc/passwd</term>
+        <listitem>
+          <para>user account information</para>
+        </listitem>
+      </varlistentry>
+    </variablelist>
+    <variablelist>
+      <varlistentry>
+        <term>/etc/shadow</term>
+        <listitem>
+          <para>shadow user account information</para>
+        </listitem>
+      </varlistentry>
+    </variablelist>
+  </refsect1>
+
+  <refsect1>
+    <title>SEE ALSO</title>
+    <para>
+      <citerefentry>
+        <refentrytitle>pwaccessd</refentrytitle><manvolnum>8</manvolnum>
+      </citerefentry>,
+      <citerefentry>
+        <refentrytitle>pwupd</refentrytitle><manvolnum>8</manvolnum>
+      </citerefentry>,
+      <citerefentry>
+        <refentrytitle>passwd</refentrytitle><manvolnum>1</manvolnum>
+      </citerefentry>,
+      <citerefentry>
+        <refentrytitle>passwd</refentrytitle><manvolnum>5</manvolnum>
+      </citerefentry>,
+      <citerefentry>
+        <refentrytitle>shadow</refentrytitle><manvolnum>5</manvolnum>
+      </citerefentry>
+    </para>
+  </refsect1>
+
+</refentry>
