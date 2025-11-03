@@ -1,0 +1,142 @@
+<refentry xmlns="http://docbook.org/ns/docbook" version="5.0" xml:id="chsh">
+  <refmeta>
+    <refentrytitle>chsh</refentrytitle>
+    <manvolnum>1</manvolnum>
+    <refmiscinfo class="source">account-utils %version%</refmiscinfo>
+    <refmiscinfo class="manual">chsh</refmiscinfo>
+  </refmeta>
+
+  <refnamediv>
+    <refname>chsh</refname>
+    <refpurpose>change login shell</refpurpose>
+  </refnamediv>
+
+  <refsynopsisdiv>
+    <cmdsynopsis sepchar=" ">
+      <command>chsh</command>
+      <arg choice="opt" rep="repeat">
+        option
+      </arg>
+      <arg choice="opt" rep="norepeat">
+        user
+      </arg>
+    </cmdsynopsis>
+  </refsynopsisdiv>
+
+  <refsect1>
+    <title>DESCRIPTION</title>
+    <para>
+      <command>chsh</command> is used to change the user login shell.
+      A normal user may only change the login shell for their own
+      account, the super user may change the login shell for any account.
+    </para>
+    <para>
+      If a shell is not given on the command line, <command>chsh</command>
+      operates in an interactive fashion, prompting the user with the current
+      login shell. Enter the new value to change the field, or leave the line
+      blank to use the current value. Enter a space or
+      <emphasis>none</emphasis> to remove the old content. The current
+      value is displayed between a pair of <emphasis>[...]</emphasis> marks.
+    </para>
+    <para>
+      The only restrictions placed on the login shell is that the command
+      name must be listed in <filename>/etc/shells</filename>, unless the
+      invoker is the super-user, and then any value may be added. An
+      account with a restricted login shell may not change their login
+      shell.
+    </para>
+    <para>
+      This implementation does not require the setuid bit set, instead
+      it will communicate via varlink protocol with
+      <citerefentry>
+        <refentrytitle>pwaccessd</refentrytitle><manvolnum>8</manvolnum>
+      </citerefentry> and
+      <citerefentry>
+        <refentrytitle>pwupd</refentrytitle><manvolnum>8</manvolnum>
+      </citerefentry> to read and modify the account data.
+    </para>
+  </refsect1>
+
+  <refsect1>
+    <title>OPTIONS</title>
+    <variablelist>
+      <varlistentry>
+	<term>
+          <option>-s, --shell</option>
+	</term>
+	<listitem>
+          <para>
+            Specify the login shell.
+          </para>
+	</listitem>
+      </varlistentry>
+      <varlistentry>
+	<term>
+          <option>-l, --list-shells</option>
+	</term>
+	<listitem>
+          <para>
+            Print the list of allowed
+	    <citerefentry>
+              <refentrytitle>shells</refentrytitle><manvolnum>5</manvolnum>
+	    </citerefentry>
+	    and exit.
+          </para>
+	</listitem>
+      </varlistentry>
+      <varlistentry>
+	<term>
+          <option>--help</option>
+	</term>
+	<listitem>
+          <para>
+            Print a more verbose help text and exit.
+          </para>
+	</listitem>
+      </varlistentry>
+      <varlistentry>
+	<term>
+          <option>-v, --version</option>
+	</term>
+	<listitem>
+          <para>
+            Print version information and exit.
+          </para>
+	</listitem>
+      </varlistentry>
+    </variablelist>
+  </refsect1>
+
+  <refsect1>
+    <title>FILES</title>
+    <variablelist>
+      <varlistentry>
+        <term>/etc/passwd</term>
+        <listitem>
+          <para>user account information</para>
+        </listitem>
+      </varlistentry>
+    </variablelist>
+  </refsect1>
+
+  <refsect1>
+    <title>SEE ALSO</title>
+    <para>
+      <citerefentry>
+        <refentrytitle>pwaccessd</refentrytitle><manvolnum>8</manvolnum>
+      </citerefentry>,
+      <citerefentry>
+        <refentrytitle>pwupd</refentrytitle><manvolnum>8</manvolnum>
+      </citerefentry>,
+      <citerefentry>
+        <refentrytitle>login</refentrytitle><manvolnum>1</manvolnum>
+      </citerefentry>,
+      <citerefentry>
+        <refentrytitle>passwd</refentrytitle><manvolnum>5</manvolnum>
+      </citerefentry>,
+      <citerefentry>
+	<refentrytitle>shells</refentrytitle><manvolnum>5</manvolnum>
+      </citerefentry>
+    </para>
+  </refsect1>
+</refentry>

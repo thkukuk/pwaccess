@@ -21,6 +21,12 @@ custom_target('chage.1',
               command : xslt_cmd + [custom_man_xsl, '@INPUT@'],
               install : want_man,
               install_dir : mandir1)
+custom_target('chsh.1',
+              input : 'chsh.1.xml',
+              output : 'chsh.1',
+              command : xslt_cmd + [custom_man_xsl, '@INPUT@'],
+              install : want_man,
+              install_dir : mandir1)
 custom_target('pam_unix_ng.8',
               input : 'pam_unix_ng.8.xml',
               output : 'pam_unix_ng.8',

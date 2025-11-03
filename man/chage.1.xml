@@ -50,6 +50,16 @@
       </citerefentry> file, chage will create a new entry in the
       <filename>shadow</filename> file.
     </para>
+    <para>
+      This implementation does not require the setuid bit set, instead it will
+      communicate via the varlink protocol with
+      <citerefentry>
+        <refentrytitle>pwaccessd</refentrytitle><manvolnum>8</manvolnum>
+      </citerefentry> and
+      <citerefentry>
+        <refentrytitle>pwupd</refentrytitle><manvolnum>8</manvolnum>
+      </citerefentry> to read and modify the account data.
+    </para>
   </refsect1>
 
   <refsect1>
@@ -193,13 +203,6 @@
       <citerefentry>
         <refentrytitle>shadow</refentrytitle><manvolnum>5</manvolnum>
       </citerefentry>
-    </para>
-  </refsect1>
-
-  <refsect1>
-    <title>AUTHOR</title>
-    <para>
-      chage was written by Thorsten Kukuk &lt;kukuk@suse.com&gt;.
     </para>
   </refsect1>
 </refentry>
