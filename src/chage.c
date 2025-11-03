@@ -15,6 +15,7 @@
 #include "pwaccess.h"
 #include "varlink-client-common.h"
 #include "get_value.h"
+#include "get_logindefs.h"
 
 #define DAY (24L*3600L)
 #define SCALE DAY
@@ -24,37 +25,6 @@ oom(void)
 {
   fprintf(stderr, "Out of memory!\n");
   return ENOMEM;
-}
-
-static long
-getdef_num(const char *key, long def)
-{
-  _cleanup_(econf_freeFilep) econf_file *key_file = NULL;
-  int32_t val;
-  econf_err error;
-
-  error = econf_readConfig(&key_file,
-                           NULL /* project */,
-                           _PATH_VENDORDIR /* usr_conf_dir */,
-                           "login" /* config_name */,
-                           "defs" /* config_suffix */,
-                           "= \t" /* delim */,
-                           "#" /* comment */);
-  if (error != ECONF_SUCCESS)
-    {
-      fprintf(stderr, "Cannot parse login.defs: %s\n", econf_errString(error));
-      return def;
-    }
-
-  error = econf_getIntValueDef (key_file, NULL, key, &val, def);
-  if (error != ECONF_SUCCESS)
-    {
-      fprintf(stderr, "Error reading '%s': %s\n", key,
-	      econf_errString(error));
-      return def;
-    }
-
-  return val;
 }
 
 /* convert a string to a time_t value and return it as number
@@ -301,6 +271,7 @@ print_help(void)
   fputs("  -M, --maxdays <days>     Maximum # of days before password can be canged\n", stdout);
   fputs("  -h, --help               Give this help list\n", stdout);
   fputs("  -v, --version            Print program version\n", stdout);
+  fputs("  -w, --warndays <days>    # days of warning before password expires\n", stdout);
   fputs("<date> must be in the form of \"YYYY-MM-DD\"\n", stdout);
 }
 
@@ -462,9 +433,9 @@ main(int argc, char **argv)
       /* disable instead of requesting password change */
       if (!sp->sp_lstchg)
 	sp->sp_lstchg = -1;
-      sp->sp_min = getdef_num("PASS_MIN_DAYS", -1);
-      sp->sp_max = getdef_num("PASS_MAX_DAYS", -1);
-      sp->sp_warn = getdef_num("PASS_WARN_AGE", -1);
+      sp->sp_min = get_logindefs_num("PASS_MIN_DAYS", -1);
+      sp->sp_max = get_logindefs_num("PASS_MAX_DAYS", -1);
+      sp->sp_warn = get_logindefs_num("PASS_WARN_AGE", -1);
       sp->sp_inact = -1;
       sp->sp_expire = -1;
     }
