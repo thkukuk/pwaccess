@@ -14,12 +14,21 @@
 #include "varlink-client-common.h"
 #include "verify.h"
 #include "chauthtok.h"
+#include "get_logindefs.h"
 
 #define ARG_DELETE_PASSWORD  1
 #define ARG_EXPIRE           2
 #define ARG_LOCK_PASSWORD    4
 #define ARG_UNLOCK_PASSWORD  8
 #define ARG_STATUS_ACCOUNT  16
+
+
+static int
+oom(void)
+{
+  fprintf(stderr, "Out of memory!\n");
+  return ENOMEM;
+}
 
 static void
 print_usage(FILE *stream)
@@ -34,15 +43,19 @@ print_help(void)
 
   print_usage(stdout);
 
-  fputs("  -d, --delete      Delete password\n", stdout);
-  fputs("  -e, --expire      Immediately expire password\n", stdout);
-  fputs("  -h, --help        Give this help list\n", stdout);
-  fputs("  -k, --keep-tokens Change only expired passwords\n", stdout);
-  fputs("  -l, --lock        Lock password\n", stdout);
-  fputs("  -q, --quiet       Be silent\n", stdout);
-  fputs("  -S, --status      Display account status\n", stdout);
-  fputs("  -u, --unlock      Unlock password\n", stdout);
-  fputs("  -v, --version     Print program version\n", stdout);
+  fputs("  -d, --delete           Delete password\n", stdout);
+  fputs("  -e, --expire           Immediately expire password\n", stdout);
+  fputs("  -h, --help             Give this help list\n", stdout);
+  fputs("  -I, --inactive <days>  Lock expired account after inactive days\n", stdout);
+  fputs("  -k, --keep-tokens      Change only expired passwords\n", stdout);
+  fputs("  -l, --lock             Lock password\n", stdout);
+  fputs("  -m, --mindays <days>   Minimum # of days before password can be changed\n", stdout);
+  fputs("  -M, --maxdays <days>   Maximum # of days before password can be canged\n", stdout);
+  fputs("  -q, --quiet            Be silent\n", stdout);
+  fputs("  -S, --status           Display account status\n", stdout);
+  fputs("  -u, --unlock           Unlock password\n", stdout);
+  fputs("  -v, --version          Print program version\n", stdout);
+  fputs("  -w, --warndays <days>  # days of warning before password expires\n", stdout);
 }
 
 static void
@@ -84,38 +97,8 @@ pw_status(const char *pass)
 }
 
 static int
-print_account_status(const char *user)
+print_account_status(const struct passwd *pw, const struct spwd *sp)
 {
-  _cleanup_(sd_json_variant_unrefp) sd_json_variant *passwd = NULL;
-  _cleanup_(sd_json_variant_unrefp) sd_json_variant *shadow = NULL;
-  _cleanup_free_ char *error = NULL;
-  _cleanup_(struct_passwd_freep) struct passwd *pw = NULL;
-  _cleanup_(struct_shadow_freep) struct spwd *sp = NULL;
-  bool complete = false;
-  int r;
-
-  r = pwaccess_get_user_record(-1, user, &pw, &sp, &complete, &error);
-  if (r < 0)
-    {
-      if (error)
-        fprintf (stderr, "%s\n", error);
-      else
-        fprintf (stderr, "get_user_record failed: %s\n", strerror(-r));
-      return -r;
-    }
-
-  if (pw == NULL)
-    {
-      fprintf(stderr, "ERROR: no password entry found!\n");
-      return ENOENT;
-    }
-
-  if (!complete)
-    {
-      fprintf(stderr, "Error: couldn't read password field, ignoring.\n");
-      return EPERM;
-    }
-
   if (sp)
     printf("%s %s %s %ld %ld %ld %ld\n",
 	   pw->pw_name,
@@ -138,7 +121,9 @@ print_account_status(const char *user)
 }
 
 static int
-modify_account(const char *user, int args, bool quiet)
+modify_account(struct passwd *pw, struct spwd *sp, int args,
+	       const char *inactive, const char *mindays,
+	       const char *maxdays, const char *warndays, bool quiet)
 {
   _cleanup_(sd_varlink_unrefp) sd_varlink *link = NULL;
   _cleanup_(sd_json_variant_unrefp) sd_json_variant *passwd = NULL;
@@ -146,9 +131,6 @@ modify_account(const char *user, int args, bool quiet)
   _cleanup_(sd_json_variant_unrefp) sd_json_variant *params = NULL;
   _cleanup_(sd_json_variant_unrefp) sd_json_variant *result = NULL;
   _cleanup_free_ char *error = NULL;
-  _cleanup_(struct_passwd_freep) struct passwd *pw = NULL;
-  _cleanup_(struct_shadow_freep) struct spwd *sp = NULL;
-  bool complete = false;
   // XXX _cleanup_(struct_result_free) struct result p = {
   struct result p = {
     .success = false,
@@ -159,28 +141,8 @@ modify_account(const char *user, int args, bool quiet)
     { "ErrorMsg", SD_JSON_VARIANT_STRING,  sd_json_dispatch_string,  offsetof(struct result, error), 0 },
     {}
   };
-  int r;
-
-  r = pwaccess_get_user_record(-1, user, &pw, &sp, &complete, &error);
-  if (r < 0)
-    {
-      if (error)
-        fprintf (stderr, "%s\n", error);
-      else
-        fprintf (stderr, "get_user_record failed: %s\n", strerror(-r));
-      return -r;
-    }
-
-  if (pw == NULL)
-    {
-      fprintf(stderr, "ERROR: no password entry found!\n");
-      return ENOENT;
-    }
-
-  if (!complete)
-    printf("Warning: couldn't read password field, ignoring.\n");
-
   int has_change = 0;
+  int r;
 
   if (args & ARG_DELETE_PASSWORD)
     {
@@ -256,6 +218,89 @@ modify_account(const char *user, int args, bool quiet)
 	  has_change = 1;
 	}
     }
+  if (inactive || mindays || maxdays || warndays)
+    {
+      char *ep;
+
+      if (!sp)
+	{
+	  sp = calloc(1, sizeof(struct spwd));
+	  if (!sp)
+	    return oom();
+	  sp->sp_namp = strdup(pw->pw_name);
+	  if (!sp->sp_namp)
+	    return oom();
+	  sp->sp_pwdp = pw->pw_passwd;
+	  pw->pw_passwd = strdup("x");
+	  if (!pw->pw_passwd)
+	    return oom();
+	  sp->sp_lstchg = time(NULL) / DAY;
+	  /* disable instead of requesting password change */
+	  if (!sp->sp_lstchg)
+	    sp->sp_lstchg = -1;
+	  sp->sp_min = get_logindefs_num("PASS_MIN_DAYS", -1);
+	  sp->sp_max = get_logindefs_num("PASS_MAX_DAYS", -1);
+	  sp->sp_warn = get_logindefs_num("PASS_WARN_AGE", -1);
+	  sp->sp_inact = -1;
+	  sp->sp_expire = -1;
+	}
+
+      if (inactive)
+	{
+	  long l;
+
+	  errno = 0;
+	  l = strtol(inactive, &ep, 10);
+	  if (errno == ERANGE || l < -1 || inactive == ep || *ep != '\0')
+	    {
+	      fprintf(stderr, "Cannot parse 'inactive=%s'\n", inactive);
+	      return EINVAL;
+	    }
+	  sp->sp_inact = l;
+	}
+      if (mindays)
+	{
+	  long l;
+
+	  errno = 0;
+	  l = strtol(mindays, &ep, 10);
+	  if (errno == ERANGE || l < -1 || mindays == ep || *ep != '\0')
+	    {
+	      fprintf(stderr, "Cannot parse 'mindays=%s'\n", mindays);
+	      return EINVAL;
+	    }
+          sp->sp_min = l;
+	}
+
+      if (maxdays)
+	{
+	  long l;
+
+	  errno = 0;
+	  l = strtol(maxdays, &ep, 10);
+	  if (errno == ERANGE || l < -1 || maxdays == ep || *ep != '\0')
+	    {
+	      fprintf(stderr, "Cannot parse 'maxdays=%s'\n", maxdays);
+	      return EINVAL;
+	    }
+          sp->sp_max = l;
+	}
+
+      if (warndays)
+        {
+          long l;
+
+          errno = 0;
+          l = strtol(warndays, &ep, 10);
+          if (errno == ERANGE || l < -1 || warndays == ep || *ep != '\0')
+            {
+              fprintf(stderr, "Cannot parse 'warndays=%s'\n", warndays);
+              return EINVAL;
+            }
+          sp->sp_warn = l;
+        }
+      has_change = 1;
+    }
   if (!has_change)
     {
       if (!quiet)
@@ -321,7 +366,7 @@ modify_account(const char *user, int args, bool quiet)
   if (r < 0)
     {
       fprintf(stderr, "Failed to call UpdatePasswdShadow method: %s\n", strerror(-r));
-      return r;
+      return -r;
     }
 
   /* dispatch before checking error_id, we may need the result for the error
@@ -330,7 +375,7 @@ modify_account(const char *user, int args, bool quiet)
   if (r < 0)
     {
       fprintf(stderr, "Failed to parse JSON answer: %s\n", strerror(-r));
-      return r;
+      return -r;
     }
 
   if (error_id && strlen(error_id) > 0)
@@ -339,7 +384,7 @@ modify_account(const char *user, int args, bool quiet)
 	fprintf(stderr, "Error updating account information:\n%s\n", p.error);
       else
 	fprintf(stderr, "Error updating account information:\n%s\n", error_id);
-      return -EIO;
+      return EIO;
     }
 
   if (!quiet)
@@ -351,10 +396,19 @@ modify_account(const char *user, int args, bool quiet)
 int
 main(int argc, char **argv)
 {
+  _cleanup_(struct_passwd_freep) struct passwd *pw = NULL;
+  _cleanup_(struct_shadow_freep) struct spwd *sp = NULL;
+  _cleanup_free_ char *error = NULL;
+  bool complete = false;
+  const char *inactive = NULL;
+  const char *mindays = NULL;
+  const char *maxdays = NULL;
+  const char *warndays = NULL;
   const char *user = NULL;
   int args = 0;
   int pam_flags = 0;
   bool quiet = false;
+  int r;
 
   while (1)
     {
@@ -365,16 +419,20 @@ main(int argc, char **argv)
 	  {"delete",      no_argument,       NULL, 'd' },
 	  {"expire",      no_argument,       NULL, 'e' },
           {"help",        no_argument,       NULL, 'h' },
+	  {"inactive",    required_argument, NULL, 'I' },
           {"keep-tokens", no_argument,       NULL, 'k' },
 	  {"lock",        no_argument,       NULL, 'l' },
+	  {"mindays",     required_argument, NULL, 'm' },
+	  {"maxdays",     required_argument, NULL, 'M' },
 	  {"quiet",       no_argument,       NULL, 'q' },
 	  {"status",      no_argument,       NULL, 'S' },
 	  {"unlock",      no_argument,       NULL, 'u' },
 	  {"version",     no_argument,       NULL, 'v' },
+	  {"warndays",    required_argument, NULL, 'w' },
           {NULL,          0,                 NULL, '\0'}
         };
 
-      c = getopt_long (argc, argv, "dehklqSuv",
+      c = getopt_long (argc, argv, "dehI:klm:M:qSuvw:",
                        long_options, &option_index);
       if (c == (-1))
         break;
@@ -389,11 +447,20 @@ main(int argc, char **argv)
         case 'h':
           print_help();
           return 0;
+	case 'I':
+	  inactive = optarg;
+	  break;
 	case 'k':
 	  pam_flags |= PAM_CHANGE_EXPIRED_AUTHTOK;
 	  break;
 	case 'l':
 	  args |= ARG_LOCK_PASSWORD;
+	  break;
+	case 'm':
+	  mindays = optarg;
+	  break;
+	case 'M':
+	  maxdays = optarg;
 	  break;
 	case 'q':
 	  quiet = true;
@@ -417,6 +484,9 @@ main(int argc, char **argv)
   argc -= optind;
   argv += optind;
 
+  if (argc == 1)
+    user = argv[0];
+
   if (argc > 1)
     {
       fprintf(stderr, "passwd: Too many arguments.\n");
@@ -424,29 +494,34 @@ main(int argc, char **argv)
       return EINVAL;
     }
 
-  if (argc == 1)
-    user = argv[0];
-  else
+  /* get user account data */
+  r = pwaccess_get_user_record(user?-1:(int64_t)getuid(), user?user:NULL,
+			       &pw, &sp, &complete, &error);
+  if (r < 0)
     {
-      struct passwd *pw = getpwuid(getuid());
-      if (pw == NULL)
-	{
-	  fprintf(stderr, "User (%u) not found!\n", getuid());
-	  return ENOENT;
-	}
-
-      user = strdupa(pw->pw_name);
-      if (user == NULL)
-	{
-	  fprintf(stderr, "Out of memory!\n");
-	  return ENOMEM;
-	}
+      fprintf(stderr, "get_user_record failed: %s\n", error?error:strerror(-r));
+      return -r;
+    }
+  if (pw == NULL)
+    {
+      fprintf(stderr, "ERROR: Unknown user '%s'.\n", user);
+      return ENOENT;
+    }
+  if (!complete)
+    {
+      fprintf(stderr, "Permission denied.\n");
+      return EPERM;
     }
 
+  /* if no user provided on commandline */
+  if (!user)
+    user = pw->pw_name;
+
   if (args & ARG_STATUS_ACCOUNT)
-    return print_account_status(user);
+    return print_account_status(pw, sp);
   else if (args)
-    return modify_account(user, args, quiet);
+    return modify_account(pw, sp, args, inactive, mindays, maxdays,
+			  warndays, quiet);
   else
     return chauthtok(user, pam_flags);
 

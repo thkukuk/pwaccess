@@ -12,7 +12,7 @@ project(
                   'b_lto=true',
 		  'warning_level=2'],
   license : ['GPL-2.0-or-later', 'LGPL-2.1-or-later'],
-  version : '0.3.0',
+  version : '0.4.0',
 )
 
 distribution = get_option('distribution')
@@ -113,6 +113,7 @@ libcommon_c = files('libcommon/chauthtok.c',
                     'libcommon/chfn_checks.c',
                     'libcommon/create_hash.c',
                     'libcommon/files.c',
+                    'libcommon/get_logindefs.c',
                     'libcommon/mkdir_p.c',
                     'libcommon/no_new_privs.c',
                     'libcommon/string-util-fundamental.c',
@@ -165,7 +166,7 @@ executable('chsh', 'src/chsh.c', 'src/get_value.c',
 executable('passwd', 'src/passwd.c',
            include_directories : inc,
            link_with : [libcommon, libpwaccess],
-           dependencies : [libsystemd, libpam, libpam_misc],
+           dependencies : [libsystemd, libpam, libpam_misc, libeconf],
            install : true)
 executable('expiry', 'src/expiry.c',
            include_directories : inc,
