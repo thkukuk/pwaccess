@@ -2,7 +2,10 @@ pwaccess NEWS -- history of user-visible changes.
 
 Copyright (C) 2025 Thorsten Kukuk <kukuk@suse.com>.
 
-Please enter bug reports at https://github.com/thkukuk/pwaccess/issues
+Please enter bug reports at https://github.com/thkukuk/account-utils/issues
+
+Version 0.4.0
+* Big update, first more or less future complete release
 
 Version 0.2.0
 * Solve issues fround during security review
