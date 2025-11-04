@@ -5,7 +5,7 @@ Documentation=man:pwaccessd(8)
 [Service]
 Type=notify
 Environment="PWACCESSD_OPTS="
-EnvironmentFile=-/etc/default/pwaccessd
+EnvironmentFile=-/etc/default/account-utils
 ExecStart=@LIBEXECDIR@/pwaccessd -s $PWACCESSD_OPTS
 IPAddressDeny=any
 LockPersonality=yes
