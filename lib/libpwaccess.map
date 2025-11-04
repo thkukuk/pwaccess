@@ -1,4 +1,4 @@
-LIBPWACCESS_0.1 {
+LIBPWACCESS_0.4 {
   global:
 	pwaccess_check_expired;
 	pwaccess_get_account_name;
