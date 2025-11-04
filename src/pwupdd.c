@@ -25,7 +25,6 @@
 #include "varlink-service-common.h"
 #include "files.h"
 #include "verify.h"
-#include "no_new_privs.h"
 #include "chfn_checks.h"
 
 #include "varlink-org.openSUSE.pwupd.h"
@@ -549,24 +548,15 @@ vl_method_chfn(sd_varlink *link, sd_json_variant *parameters,
 				SD_JSON_BUILD_PAIR_STRING("ErrorMsg", stroom(error)));
     }
 
-  /* Run under the UID of the caller, else pam_unix will not ask for old password
-     and pam_rootok will wrongly match. */
-  /* XXX move in extra function */
+  /* Run under the UID of the caller, else pam_unix will not ask
+     for old password and pam_rootok will wrongly match. */
   if (peer_uid != 0)
     {
-      if (no_new_privs_enabled())
+      log_msg(LOG_DEBUG, "Calling setresuid(%u,0,0)", peer_uid);
+      if (setresuid(peer_uid, 0, 0) != 0)
 	{
-	  log_msg(LOG_DEBUG, "NoNewPrivs is enabled, running PAM stack as root");
-	  p.run_as_user = 1;
-	}
-      else
-	{
-	  log_msg(LOG_DEBUG, "Calling setresuid(%u,0,0)", peer_uid);
-	  if (setresuid(peer_uid, 0, 0) != 0)
-	    {
-	      parameters_free(&p);
-	      return return_errno_error(link, "setresuid", errno);
-	    }
+	  parameters_free(&p);
+	  return return_errno_error(link, "setresuid", errno);
 	}
     }
 
@@ -815,24 +805,15 @@ vl_method_chsh(sd_varlink *link, sd_json_variant *parameters,
 		       SD_JSON_BUILD_PAIR_INTEGER("msg_style", PAM_TEXT_INFO),
 		       SD_JSON_BUILD_PAIR_STRING("message", msg));
 
-  /* Run under the UID of the caller, else pam_unix will not ask for old password
-     and pam_rootok will wrongly match. */
-  /* XXX move in extra function */
+  /* Run under the UID of the caller, else pam_unix will not ask for
+     old password and pam_rootok will wrongly match. */
   if (peer_uid != 0)
     {
-      if (no_new_privs_enabled())
+      log_msg(LOG_DEBUG, "Calling setresuid(%u,0,0)", peer_uid);
+      if (setresuid(peer_uid, 0, 0) != 0)
 	{
-	  log_msg(LOG_DEBUG, "NoNewPrivs is enabled, running PAM stack as root");
-	  p.run_as_user = 1;
-	}
-      else
-	{
-	  log_msg(LOG_DEBUG, "Calling setresuid(%u,0,0)", peer_uid);
-	  if (setresuid(peer_uid, 0, 0) != 0)
-	    {
-	      parameters_free(&p);
-	      return return_errno_error(link, "setresuid", errno);
-	    }
+	  parameters_free(&p);
+	  return return_errno_error(link, "setresuid", errno);
 	}
     }
 
@@ -1025,24 +1006,15 @@ vl_method_chauthtok(sd_varlink *link, sd_json_variant *parameters,
 				SD_JSON_BUILD_PAIR_STRING("ErrorMsg", stroom(error)));
     }
 
-  /* Run under the UID of the caller, else pam_unix will not ask for old password
-     and pam_rootok will wrongly match. */
-  /* XXX move in extra function */
+  /* Run under the UID of the caller, else pam_unix will not ask for
+     old password and pam_rootok will wrongly match. */
   if (peer_uid != 0)
     {
-      if (no_new_privs_enabled())
+      log_msg(LOG_DEBUG, "Calling setresuid(%u,0,0)", peer_uid);
+      if (setresuid(peer_uid, 0, 0) != 0)
 	{
-	  log_msg(LOG_DEBUG, "NoNewPrivs is enabled, running PAM stack as root");
-	  p.run_as_user = 1;
-	}
-      else
-	{
-	  log_msg(LOG_DEBUG, "Calling setresuid(%u,0,0)", peer_uid);
-	  if (setresuid(peer_uid, 0, 0) != 0)
-	    {
-	      parameters_free(&p);
-	      return return_errno_error(link, "setresuid", errno);
-	    }
+	  parameters_free(&p);
+	  return return_errno_error(link, "setresuid", errno);
 	}
     }
 
