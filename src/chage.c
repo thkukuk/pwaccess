@@ -271,7 +271,7 @@ print_help(void)
   fputs("  -M, --maxdays <days>     Maximum # of days before password can be canged\n", stdout);
   fputs("  -h, --help               Give this help list\n", stdout);
   fputs("  -v, --version            Print program version\n", stdout);
-  fputs("  -w, --warndays <days>    # days of warning before password expires\n", stdout);
+  fputs("  -W, --warndays <days>    # days of warning before password expires\n", stdout);
   fputs("<date> must be in the form of \"YYYY-MM-DD\"\n", stdout);
 }
 
