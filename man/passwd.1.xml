@@ -1,0 +1,254 @@
+<refentry xmlns="http://docbook.org/ns/docbook" version="5.0" xml:id="passwd">
+  <refmeta>
+    <refentrytitle>passwd</refentrytitle>
+    <manvolnum>1</manvolnum>
+    <refmiscinfo class="source">account-utils %version%</refmiscinfo>
+    <refmiscinfo class="manual">passwd</refmiscinfo>
+  </refmeta>
+
+  <refnamediv>
+    <refname>passwd</refname>
+    <refpurpose>change user password</refpurpose>
+  </refnamediv>
+
+  <refsynopsisdiv>
+    <cmdsynopsis sepchar=" ">
+      <command>passwd</command>
+      <arg choice="opt" rep="repeat">
+        option
+      </arg>
+      <arg choice="opt" rep="norepeat">
+        user
+      </arg>
+    </cmdsynopsis>
+  </refsynopsisdiv>
+
+  <refsect1>
+    <title>DESCRIPTION</title>
+    <para>
+      The <option>passwd</option> command changes passwords for user
+      accounts. While an administrator may change the password
+      for any account, a normal user is only allowed to change
+      the password for their own account.
+      <option>passwd</option> can also change account
+      information, such as the full name of the user, their login shell
+      and password expiry dates or disable an account.
+    </para>
+    <para>
+      This implementation does not require the setuid bit set, instead it will
+      communicate via the varlink protocol with
+      <citerefentry>
+        <refentrytitle>pwaccessd</refentrytitle><manvolnum>8</manvolnum>
+      </citerefentry> and
+      <citerefentry>
+        <refentrytitle>pwupd</refentrytitle><manvolnum>8</manvolnum>
+      </citerefentry> to read and modify the account data.
+    </para>
+  </refsect1>
+
+  <refsect1>
+    <title>OPTIONS</title>
+    <variablelist>
+      <varlistentry>
+	<term>
+          <option>-d, --delete</option>
+	</term>
+	<listitem>
+          <para>
+            The password of the given account can be deleted by the
+            system administrator. If the PAM stack is configured
+	    accordingly, the user can log in without entering a password.
+          </para>
+	</listitem>
+      </varlistentry>
+      <varlistentry>
+	<term>
+          <option>-e, --expire</option>
+	</term>
+	<listitem>
+          <para>
+            Immediately expire the password. The user will be forced
+	    to change the password at next login.
+          </para>
+	</listitem>
+      </varlistentry>
+      <varlistentry>
+	<term>
+          <emphasis role="strong">-h, --help</emphasis>
+	</term>
+	<listitem>
+          <para>
+	    Print a verbose help text and exit.
+          </para>
+	</listitem>
+      </varlistentry>
+      <varlistentry>
+        <term>
+          <option>-I, --inactive</option> <replaceable>days</replaceable>
+        </term>
+        <listitem>
+          <para>
+            This option is used to set the number of days of inactivity
+            after a password has expired before the account is locked. A
+            user whose account is locked must contact the system
+            administrator before being able to use the account again. A
+            value of -1 disables this feature.
+          </para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+	<term>
+          <option>-k, --keep-tokens</option>
+	</term>
+	<listitem>
+          <para>
+            Keep non-expired authentication tokens. The password will only
+            be changed if it is expired. This functionality depends on the
+	    used PAM modules to change the password.
+          </para>
+	</listitem>
+      </varlistentry>
+      <varlistentry>
+        <term>
+          <option>-l, --lock</option>
+        </term>
+        <listitem>
+          <para>
+            A system administrator can lock the account of the specified
+            user by adding a <emphasis>!</emphasis> in front of the password,
+	    so that it cannot match anything.
+          </para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term>
+          <option>-m, --mindays</option> <replaceable>#days</replaceable>
+        </term>
+        <listitem>
+          <para>
+            With this option the minimum number of days between password
+            changes is changed. A value of zero for this field indicates
+            that the user may change her password at any time. Else the
+            user will not be permitted to change the password until
+            minimum number of days have elapsed.
+          </para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term>
+          <option>-M, --maxdays</option> <replaceable>#days</replaceable>
+        </term>
+        <listitem>
+          <para>
+            With this option the maximum number of days during which a
+            password is valid is changed. When
+            <emphasis>maxdays</emphasis> plus <emphasis>lastday</emphasis>
+            is less than the current day, the user will be required to
+            change his password before being able to use the account.
+          </para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+	<term>
+          <option>-q, --quiet</option>
+	</term>
+	<listitem>
+          <para>
+            Suppress informal messages. This mainly depends on the used
+	    PAM modules.
+          </para>
+	</listitem>
+      </varlistentry>
+      <varlistentry>
+        <term>
+          <option>-S, --status</option>
+        </term>
+        <listitem>
+          <para>
+            Report password status on the named account. The first part
+            indicates if the user account is locked (LK), has no
+            password (NP), or has an existing or locked password (PS).
+            The second part gives the date of the last password change.
+            The next parts are the minimum age, maximum age, warning
+            period, and inactivity period for the password.
+          </para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term>
+          <option>-u, --unlock</option>
+        </term>
+        <listitem>
+          <para>
+            A system administrator can unlock the specified account by
+	    removing the <emphasis>!</emphasis> in front of the password
+	    again. This can lead to a password less account, if it was
+	    password less before, too.
+          </para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term>
+          <option>-v, --version</option>
+        </term>
+        <listitem>
+          <para>
+            Print version information and exit.
+          </para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term>
+          <option>-w, --warndays</option> <replaceable>#days</replaceable>
+        </term>
+        <listitem>
+          <para>
+            With this option the number of days of warning before a
+            password change is required can be changed. This option is the
+            number of days prior to the password expiring that a user will
+            be warned the password is about to expire.
+          </para>
+        </listitem>
+      </varlistentry>
+    </variablelist>
+  </refsect1>
+
+  <refsect1>
+    <title>FILES</title>
+    <variablelist>
+      <varlistentry>
+        <term>/etc/passwd</term>
+        <listitem>
+          <para>user account information</para>
+        </listitem>
+      </varlistentry>
+    </variablelist>
+    <variablelist>
+      <varlistentry>
+        <term>/etc/shadow</term>
+        <listitem>
+          <para>shadow user account information</para>
+        </listitem>
+      </varlistentry>
+    </variablelist>
+  </refsect1>
+
+  <refsect1>
+    <title>SEE ALSO</title>
+    <para>
+      <citerefentry>
+        <refentrytitle>pwaccessd</refentrytitle><manvolnum>8</manvolnum>
+      </citerefentry>,
+      <citerefentry>
+        <refentrytitle>pwupd</refentrytitle><manvolnum>8</manvolnum>
+      </citerefentry>,
+      <citerefentry>
+        <refentrytitle>passwd</refentrytitle><manvolnum>5</manvolnum>
+      </citerefentry>,
+      <citerefentry>
+        <refentrytitle>shadow</refentrytitle><manvolnum>5</manvolnum>
+      </citerefentry>
+    </para>
+  </refsect1>
+
+</refentry>
