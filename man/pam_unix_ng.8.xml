@@ -141,8 +141,7 @@
             Prefix of the hash algorithm to use. See
 	    <citerefentry>
               <refentrytitle>crypt</refentrytitle><manvolnum>5</manvolnum>
-            </citerefentry>.
-	    for valid values.
+            </citerefentry> for valid values.
           </para>
         </listitem>
       </varlistentry>
@@ -155,8 +154,7 @@
             This option controls the processing cost of the hash. See
 	    <citerefentry>
               <refentrytitle>crypt</refentrytitle><manvolnum>5</manvolnum>
-            </citerefentry>.
-	    for valid values.
+            </citerefentry> for valid values.
           </para>
         </listitem>
       </varlistentry>
