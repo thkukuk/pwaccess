@@ -23,6 +23,7 @@ parse_args(pam_handle_t *pamh, int flags, int argc, const char **argv,
   /* defaults */
   cfg->fail_delay = 2000;
   cfg->minlen = 8;
+  /* XXX don't hardcode, read from login.defs! */
   cfg->crypt_prefix = "$y$";
   cfg->crypt_count = 0;
 
