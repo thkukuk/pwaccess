@@ -27,6 +27,8 @@ conf.set_quoted('_VARLINK_PWACCESS_SOCKET_DIR', '/run/account')
 conf.set_quoted('_VARLINK_PWACCESS_SOCKET', '/run/account/pwaccess-socket')
 conf.set_quoted('_VARLINK_PWUPD_SOCKET_DIR', '/run/account')
 conf.set_quoted('_VARLINK_PWUPD_SOCKET', '/run/account/pwupd-socket')
+conf.set_quoted('_VARLINK_NEWIDMAPD_SOCKET_DIR', '/run/account')
+conf.set_quoted('_VARLINK_NEWIDMAPD_SOCKET', '/run/account/newidmapd-socket')
 conf.set_quoted('_PATH_VENDORDIR', get_option('vendordir'))
 
 cc = meson.get_compiler('c')
@@ -131,6 +133,9 @@ pwaccessd_c = ['src/pwaccessd.c', 'src/varlink-org.openSUSE.pwaccess.c',
 	       'src/varlink-service-common.c']
 pwupdd_c = ['src/pwupdd.c', 'src/varlink-org.openSUSE.pwupd.c',
             'src/varlink-service-common.c']
+newidmapd_c = ['src/newidmapd.c', 'src/varlink-org.openSUSE.newidmapd.c',
+               'libcommon/mkdir_p.c',
+               'src/varlink-service-common.c']
 
 executable('pwaccessd',
            pwaccessd_c,
@@ -146,6 +151,27 @@ executable('pwupdd',
 	   link_with : [libcommon, libpwaccess],
 	   dependencies : [libpam, libsystemd, libeconf, libselinux],
            install_dir : libexecdir,
+           install : true)
+
+executable('newidmapd',
+           newidmapd_c,
+           include_directories : inc,
+           # link_with : [libcommon, libpwaccess],
+           dependencies : [libsystemd, libeconf],
+           install_dir : libexecdir,
+           install : true)
+
+executable('newuidmap', 'src/newxidmap.c',
+           c_args : '-DXID="uid"',
+           include_directories : inc,
+           link_with : [libcommon],
+           dependencies : [libsystemd],
+           install : true)
+executable('newgidmap', 'src/newxidmap.c',
+           c_args : '-DXID="gid"',
+           include_directories : inc,
+           link_with : [libcommon],
+           dependencies : [libsystemd],
            install : true)
 
 executable('chage', 'src/chage.c', 'src/get_value.c',

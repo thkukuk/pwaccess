@@ -19,3 +19,15 @@ configure_file(
   install_dir: systemunitdir,
 )
 install_data('pwupdd.socket', install_dir : systemunitdir)
+
+configure_file(
+  input: 'newidmapd.service.in',
+  output: 'newidmapd.service',
+  configuration: {
+    'LIBEXECDIR': libexecdir,
+  },
+  install: true,
+  install_dir: systemunitdir,
+)
+install_data('newidmapd.socket', install_dir : systemunitdir)
+

@@ -1,0 +1,9 @@
+[Unit]
+Description=Daemon to set map ranges
+Documentation=man:newidmapd(8)
+
+[Service]
+Type=notify
+Environment="NEWIDMAPD_OPTS="
+EnvironmentFile=-/etc/default/account-utils
+ExecStart=@LIBEXECDIR@/newidmapd -s $NEWIDMAPD_OPTS
