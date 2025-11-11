@@ -8,6 +8,13 @@
 #include "basics.h"
 #include "varlink-client-common.h"
 
+struct result *
+struct_result_free(struct result *var)
+{
+  var->error = mfree((char *)var->error);
+  return NULL;
+}
+
 int
 connect_to_pwupdd(sd_varlink **ret, const char *socket, char **error)
 {
@@ -52,18 +59,6 @@ pam_message_free(struct pam_message *var)
   return NULL;
 }
 
-#if 0 /* XXX not needed */
-static void
-pam_message_freep(struct pam_message **var)
-{
-  if (!var || !*var)
-    return;
-
-  pam_message_free(*var);
-  *var = mfree(*var);
-}
-#endif
-
 struct pam_response *resp = NULL;
 
 int
@@ -82,8 +77,7 @@ reply_callback(sd_varlink *link _unused_,
     { "message",   SD_JSON_VARIANT_STRING,  sd_json_dispatch_string, offsetof(struct pam_message, msg),       SD_JSON_NULLABLE },
     {}
   };
-  // XXX _cleanup_(user_record_free) struct result p = {
-  struct result p = {
+  _cleanup_(struct_result_free) struct result p = {
     .success = false,
     .error = NULL,
   };
@@ -123,10 +117,10 @@ reply_callback(sd_varlink *link _unused_,
 	  }
 	if (!p.success)
 	  {
-	    if (p.error) /* XXX not password */
-	      fprintf(stderr, "Error while changing password: %s.\n", p.error);
+	    if (p.error)
+	      fprintf(stderr, "Error while changing account data: %s.\n", p.error);
 	    else
-	      fprintf(stderr, "Error while changing password.\n");
+	      fprintf(stderr, "Error while changing account data.\n");
 	    return 1;
 	  }
     }

@@ -156,8 +156,7 @@ update_account(const struct passwd *pw, const struct spwd *sp)
   _cleanup_(sd_json_variant_unrefp) sd_json_variant *params = NULL;
   _cleanup_(sd_json_variant_unrefp) sd_json_variant *result = NULL;
   _cleanup_free_ char *error = NULL;
-  // XXX _cleanup_(struct_result_free) struct result p = {
-  struct result p = {
+  _cleanup_(struct_result_free) struct result p = {
     .success = false,
     .error = NULL,
   };
