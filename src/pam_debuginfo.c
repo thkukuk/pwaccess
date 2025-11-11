@@ -14,6 +14,20 @@
 #include "basics.h"
 #include "no_new_privs.h"
 
+static void
+freeconp(char **p)
+{
+#ifdef WITH_SELINUX
+  if (!p || !*p)
+    return;
+
+  freecon(*p);
+  *p = NULL;
+#else
+  (void)p;
+#endif
+}
+
 static const char *
 selinux_status(pam_handle_t *pamh)
 {
@@ -48,12 +62,16 @@ selinux_status(pam_handle_t *pamh)
 static void
 log_debug_info(pam_handle_t *pamh, const char *type, int flags)
 {
+  _cleanup_(freeconp) char *secon = NULL;
   const void *service = NULL;
   const void *user = NULL;
   const void *ruser = NULL;
   const void *rhost = NULL;
   const void *tty = NULL;
   const char *login_name;
+
+  if (getcon(&secon) < 0)
+    pam_syslog(pamh, LOG_ERR, "getcon() failed: %s", strerror(errno));
 
   pam_get_item(pamh, PAM_SERVICE, &service);
   pam_get_item(pamh, PAM_USER, &user);
@@ -67,12 +85,13 @@ log_debug_info(pam_handle_t *pamh, const char *type, int flags)
              "service=%s type=%s flags=%d "
              "logname=%s uid=%u euid=%u "
              "tty=%s ruser=%s rhost=%s "
-             "user=%s%s%s",
+             "user=%s%s%s%s%s",
 	     strna(service), type, flags,
              strna(login_name), getuid(), geteuid(),
              strna(tty), strna(ruser), strna(rhost),
-             strna(user), selinux_status(pamh),
-	     no_new_privs_enabled()?", no_new_privs=1":"");
+             strna(user),
+	     no_new_privs_enabled()?", no_new_privs=1":"",
+	     selinux_status(pamh), secon?", context=":"", secon?secon:"");
 }
 
 int
