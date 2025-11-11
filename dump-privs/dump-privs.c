@@ -40,13 +40,11 @@ selinux_status(void)
 #endif
 }
 
-
-
 int
 main(void)
 {
   char *secon = NULL;
-  int nnp_status = prctl(PR_GET_NO_NEW_PRIVS, 0, 0, 0, 0);
+  int no_new_privs = prctl(PR_GET_NO_NEW_PRIVS, 0, 0, 0, 0);
   const char *sestatus = selinux_status();
 
   printf("🔎 Process Security Information\n");
@@ -63,7 +61,7 @@ main(void)
     }
   else
     printf("SELinux Context:   %s\n", strerror(errno));
-  printf("NoNewPrivs Status: %s\n", nnp_status==0?"off":"on");
+  printf("NoNewPrivs Status: %s\n", no_new_privs==0?"off":"on");
 
   getchar();
 
