@@ -22,8 +22,9 @@ struct config_t
   unsigned long crypt_count; /* see man crypt(5) */
 };
 
-extern int parse_args(pam_handle_t *pamh, int flags,
-		      int argc, const char **argv, struct config_t *cfg);
+extern int parse_args(pam_handle_t *pamh, int flags, int argc,
+		      const char **argv, struct config_t *cfg,
+		      bool init_crypt);
 extern int alloc_getxxnam_buffer(pam_handle_t *pamh,
 				 char **buf, long *size);
 extern int authenticate_user(pam_handle_t *pamh, uint32_t ctrl,

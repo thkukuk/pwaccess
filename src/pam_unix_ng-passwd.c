@@ -451,7 +451,7 @@ pam_sm_chauthtok(pam_handle_t *pamh, int flags,
   struct config_t cfg;
   int r;
 
-  r = parse_args(pamh, flags, argc, argv, &cfg);
+  r = parse_args(pamh, flags, argc, argv, &cfg, true);
   if (r < 0)
     return errno_to_pam(r);
 

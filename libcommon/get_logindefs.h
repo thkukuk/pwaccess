@@ -3,4 +3,4 @@
 #pragma once
 
 extern long get_logindefs_num(const char *key, long def);
-
+extern char *get_logindefs_string(const char *key, const char *def);

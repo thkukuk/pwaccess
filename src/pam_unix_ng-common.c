@@ -10,10 +10,11 @@
 #include "pam_unix_ng.h"
 #include "verify.h"
 #include "no_new_privs.h"
+#include "get_logindefs.h"
 
 int
 parse_args(pam_handle_t *pamh, int flags, int argc, const char **argv,
-	   struct config_t *cfg)
+	   struct config_t *cfg, bool init_crypt)
 {
   const char *cp;
 
@@ -23,9 +24,37 @@ parse_args(pam_handle_t *pamh, int flags, int argc, const char **argv,
   /* defaults */
   cfg->fail_delay = 2000;
   cfg->minlen = 8;
-  /* XXX don't hardcode, read from login.defs! */
-  cfg->crypt_prefix = "$y$";
-  cfg->crypt_count = 0;
+
+  /* only read login.defs if we change the password */
+  if (init_crypt)
+    {
+      char *val;
+
+      cfg->crypt_count = 0;
+      cfg->crypt_prefix = "$y$";
+
+      val = get_logindefs_string("ENCRYPT_METHOD", NULL);
+      if (isempty(val) || streq(val, "YESCRYPT"))
+	cfg->crypt_prefix = "$y$";
+      else if (streq(val, "GHOST_YESCRYPT"))
+	cfg->crypt_prefix = "$gy$";
+      else if (streq(val, "SHA512"))
+	{
+	  cfg->crypt_count = get_logindefs_num("SHA_CRYPT_MAX_ROUNDS", 5000);
+	  cfg->crypt_prefix = "$6$";
+	}
+      else if (streq(val, "SHA256"))
+	{
+	  cfg->crypt_count = get_logindefs_num("SHA_CRYPT_MAX_ROUNDS", 5000);
+	  cfg->crypt_prefix = "$5$";
+	}
+      else if (streq(val, "MD5"))
+	cfg->crypt_prefix = "$1$";
+      else if (streq(val, "BLOWFISH") || streq(val, "BCRYPT"))
+	cfg->crypt_prefix = "$2b$";
+      /* value of val got allocated by libeconf */
+      free(val);
+    }
 
   /* does the application require quiet? */
   if (flags & PAM_SILENT)

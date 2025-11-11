@@ -214,7 +214,7 @@ pam_unix_ng = shared_library(
   link_args : ['-shared', pam_unix_ng_map_version],
   link_depends : pam_unix_ng_map,
   link_with : [libpwaccess, libcommon],
-  dependencies : [libcrypt, libpam, libselinux],
+  dependencies : [libcrypt, libeconf, libpam, libselinux],
   install : true,
   install_dir : pamlibdir
 )

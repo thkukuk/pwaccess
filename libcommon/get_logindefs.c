@@ -14,6 +14,7 @@ get_logindefs_num(const char *key, long def)
   int32_t val;
   econf_err error;
 
+  /* XXX unify econf_readConfig call */
   error = econf_readConfig(&key_file,
                            NULL /* project */,
                            _PATH_VENDORDIR /* usr_conf_dir */,
@@ -27,7 +28,7 @@ get_logindefs_num(const char *key, long def)
       return def;
     }
 
-  error = econf_getIntValueDef (key_file, NULL, key, &val, def);
+  error = econf_getIntValueDef(key_file, NULL, key, &val, def);
   if (error != ECONF_SUCCESS)
     {
       fprintf(stderr, "Error reading '%s': %s\n", key,
@@ -38,3 +39,34 @@ get_logindefs_num(const char *key, long def)
   return val;
 }
 
+char *
+get_logindefs_string(const char *key, const char *def)
+{
+  _cleanup_(econf_freeFilep) econf_file *key_file = NULL;
+  char *val;
+  econf_err error;
+
+  /* XXX unify econf_readConfig call */
+  error = econf_readConfig(&key_file,
+                           NULL /* project */,
+                           _PATH_VENDORDIR /* usr_conf_dir */,
+                           "login" /* config_name */,
+                           "defs" /* config_suffix */,
+                           "= \t" /* delim */,
+                           "#" /* comment */);
+  if (error != ECONF_SUCCESS)
+    {
+      fprintf(stderr, "Cannot parse login.defs: %s\n", econf_errString(error));
+      return def;
+    }
+
+  error = econf_getStringValueDef(key_file, NULL, key, &val, def);
+  if (error != ECONF_SUCCESS)
+    {
+      fprintf(stderr, "Error reading '%s': %s\n", key,
+              econf_errString(error));
+      return def;
+    }
+
+  return val;
+}
