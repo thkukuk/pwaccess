@@ -270,7 +270,8 @@ unix_chauthtok(pam_handle_t *pamh, int flags, struct config_t *cfg)
 	  pam_error(pamh, "You must wait longer to change your password.");
 	  return PAM_AUTHTOK_ERR;
 	}
-      pam_syslog(pamh, LOG_DEBUG, "expired_check=%i", r);
+      if (cfg->ctrl & ARG_DEBUG)
+	pam_syslog(pamh, LOG_DEBUG, "expired_check=%i", r);
       if (r == PWA_EXPIRED_NO && (flags & PAM_CHANGE_EXPIRED_AUTHTOK))
 	{
 	  pam_error(pamh, "Password not expired");
@@ -375,7 +376,7 @@ unix_chauthtok(pam_handle_t *pamh, int flags, struct config_t *cfg)
       /* We have an approved password, create new hash and
 	 change the database */
 
-      if (cfg->ctrl | ARG_DEBUG)
+      if (cfg->ctrl & ARG_DEBUG)
 	pam_syslog(pamh, LOG_DEBUG, "Create hash with prefix=%s, count=%lu",
 		   cfg->crypt_prefix, cfg->crypt_count);
 
