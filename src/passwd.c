@@ -474,6 +474,9 @@ main(int argc, char **argv)
         case 'v':
 	  printf("passwd (%s) %s\n", PACKAGE, VERSION);
           return 0;
+	case 'w':
+	  warndays = optarg;
+	  break;
         default:
           print_error();
           return 1;
