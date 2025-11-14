@@ -3,7 +3,6 @@ Description=Daemon to update passwd and shadow entries
 After=local-fs.target
 
 [Service]
-Type=notify
 Environment="PWUPDD_OPTS="
 EnvironmentFile=-/etc/default/account-utils
 ExecStart=@LIBEXECDIR@/pwupdd $PWUPDD_OPTS
