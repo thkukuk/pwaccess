@@ -129,8 +129,6 @@ vl_method_get_environment(sd_varlink *link, sd_json_variant *parameters,
       return sd_varlink_error(link, SD_VARLINK_ERROR_PERMISSION_DENIED, parameters);
     }
 
-  sleep(10);
-
   r = sd_varlink_dispatch(link, parameters, NULL, NULL);
   if (r != 0)
     return r;
@@ -144,8 +142,6 @@ vl_method_get_environment(sd_varlink *link, sd_json_variant *parameters,
 	goto invalid;
     }
 #endif
-
-  sleep(10);
 
   return sd_varlink_replybo(link, SD_JSON_BUILD_PAIR_STRV("Environment", environ));
 
