@@ -239,6 +239,10 @@ subdir('include')
 # systemd units
 subdir('units')
 
+if get_option('dump-privs')
+  subdir('dump-privs')
+endif
+
 # example pam configuration files
 pamdchfnsrc = 'pam.d' / distribution / 'pwupd-chfn'
 pamdchshsrc = 'pam.d' / distribution / 'pwupd-chsh'
