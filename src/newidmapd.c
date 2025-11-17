@@ -39,8 +39,8 @@ map_range_freep(struct map_range **var)
 
 struct parameters {
   pid_t pid;
-  char *map; /* see varlink interface definition for valid ranges */
-  int ranges;
+  char *map; /* see varlink interface definition for valid names */
+  int nranges;
   struct map_range *mappings;
   sd_json_variant *content_map_ranges;
 };
@@ -49,7 +49,7 @@ static void
 parameters_free(struct parameters *var)
 {
   var->map = mfree(var->map);
-  var->ranges = 0;
+  var->nranges = 0;
   map_range_freep(&(var->mappings));
   var->content_map_ranges = sd_json_variant_unref(var->content_map_ranges);
 }
@@ -101,7 +101,7 @@ verify_range(uid_t uid, uint64_t start, uint64_t count, const struct map_range m
    0 : range is valid
    1 : range is invalid */
 static int
-verify_ranges(uid_t uid, int ranges, const struct map_range *mappings, const char *map)
+verify_ranges(uid_t uid, int nranges, const struct map_range *mappings, const char *map)
 {
   const char *subid_file = NULL;
   _cleanup_(econf_freeFilep) econf_file *econf = NULL;
@@ -172,7 +172,7 @@ verify_ranges(uid_t uid, int ranges, const struct map_range *mappings, const cha
 
   log_msg(LOG_DEBUG, "%s: user=%s, start=%li, count=%li", subid_file, user, start, count);
 
-  for (int i = 0; i < ranges; i++)
+  for (int i = 0; i < nranges; i++)
     {
       if (!verify_range(uid, start, count, mappings[i]))
 	return 1;
@@ -182,7 +182,7 @@ verify_ranges(uid_t uid, int ranges, const struct map_range *mappings, const cha
 }
 
 static int
-write_mapping(int proc_dir_fd, int ranges, const struct map_range *mappings,
+write_mapping(int proc_dir_fd, int nranges, const struct map_range *mappings,
 	      const char *map)
 {
   _cleanup_free_ char *res = NULL;
@@ -195,7 +195,7 @@ write_mapping(int proc_dir_fd, int ranges, const struct map_range *mappings,
       return -ENOMEM;
     }
 
-  for (int i = 0; i < ranges; i++)
+  for (int i = 0; i < nranges; i++)
     {
       _cleanup_free_ char *old_res = res;
 
@@ -244,7 +244,7 @@ vl_method_write_mappings(sd_varlink *link, sd_json_variant *parameters,
   _cleanup_(parameters_free) struct parameters p = {
     .pid = 0,
     .map = NULL,
-    .ranges = 0,
+    .nranges = 0,
     .mappings = NULL,
     .content_map_ranges = NULL,
   };
@@ -288,10 +288,10 @@ vl_method_write_mappings(sd_varlink *link, sd_json_variant *parameters,
       return -EINVAL;
     }
 
-  p.ranges = sd_json_variant_elements(p.content_map_ranges);
-  p.mappings = calloc(p.ranges, sizeof(struct map_range));
+  p.nranges = sd_json_variant_elements(p.content_map_ranges);
+  p.mappings = calloc(p.nranges, sizeof(struct map_range));
 
-  for (int i = 0; i < p.ranges; i++)
+  for (int i = 0; i < p.nranges; i++)
     {
       struct map_range e = {
         .upper = -1,
@@ -366,7 +366,7 @@ vl_method_write_mappings(sd_varlink *link, sd_json_variant *parameters,
 				SD_JSON_BUILD_PAIR_STRING("ErrorMsg", "PID is owned by a different user"));
     }
 
-  r = verify_ranges(peer_uid, p.ranges, p.mappings, p.map);
+  r = verify_ranges(peer_uid, p.nranges, p.mappings, p.map);
   if (r < 0)
     {
       return sd_varlink_errorbo(link, "org.openSUSE.newidmapd.InvalidParameter",
@@ -380,7 +380,7 @@ vl_method_write_mappings(sd_varlink *link, sd_json_variant *parameters,
 				SD_JSON_BUILD_PAIR_STRING("ErrorMsg", "Mapping ranges are not correct"));
     }
 
-  r = write_mapping(proc_dir_fd, p.ranges, p.mappings, p.map);
+  r = write_mapping(proc_dir_fd, p.nranges, p.mappings, p.map);
   if (r < 0)
     {
       return sd_varlink_errorbo(link, "org.openSUSE.newidmapd.PermissionDenied",
