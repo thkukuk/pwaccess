@@ -96,10 +96,6 @@ struct parameters {
   int flags;
   sd_json_variant *content_passwd;
   sd_json_variant *content_shadow;
-  /* run_as_user:
-     0: let PAM module decide as what we run
-     1: PAM modules should assume we run as user even if geteuid() returns 0 */
-  int run_as_user;
   sd_varlink *link;
 };
 
@@ -224,7 +220,6 @@ run_pam_auth(void *arg)
     .content_passwd = NULL,
     .content_shadow = NULL,
     .link = param->link,
-    .run_as_user = param->run_as_user,
   };
   const struct pam_conv conv = {
     varlink_conv,
@@ -239,16 +234,6 @@ run_pam_auth(void *arg)
       log_msg(LOG_ERR, "pam_start(\"%s\", %s) failed: %s", p.pam_service,
 	      p.name, pam_strerror(NULL, r));
       return broadcast_and_return(r);
-    }
-
-  if (p.run_as_user)
-    {
-      r = pam_putenv(pamh, "PAM_NO_ROOT=1");
-      if (r != PAM_SUCCESS)
-	{
-	  log_msg(LOG_ERR, "pam_putenv(\"PAM_NO_ROOT=1\") failed: %s", pam_strerror(NULL, r));
-	  return broadcast_and_return(r);
-	}
     }
 
   r = pam_authenticate(pamh, 0);
@@ -391,7 +376,6 @@ vl_method_chfn(sd_varlink *link, sd_json_variant *parameters,
     .content_passwd = NULL,
     .content_shadow = NULL,
     .link = link,
-    .run_as_user = 0,
   };
   static const sd_json_dispatch_field dispatch_table[] = {
     { "userName",  SD_JSON_VARIANT_STRING,  sd_json_dispatch_string, offsetof(struct parameters, name),       SD_JSON_MANDATORY},
@@ -728,7 +712,6 @@ vl_method_chsh(sd_varlink *link, sd_json_variant *parameters,
     .content_passwd = NULL,
     .content_shadow = NULL,
     .link = link,
-    .run_as_user = 0,
   };
   static const sd_json_dispatch_field dispatch_table[] = {
     { "userName", SD_JSON_VARIANT_STRING,  sd_json_dispatch_string, offsetof(struct parameters, name),  SD_JSON_MANDATORY},
@@ -879,7 +862,6 @@ run_pam_chauthtok(void *arg)
     .content_passwd = NULL,
     .content_shadow = NULL,
     .link = param->link,
-    .run_as_user = param->run_as_user,
   };
   const struct pam_conv conv = {
     varlink_conv,
@@ -894,16 +876,6 @@ run_pam_chauthtok(void *arg)
       log_msg(LOG_ERR, "pam_start(\"%s\", %s) failed: %s", p.pam_service,
 	      p.name, pam_strerror(NULL, r));
       return broadcast_and_return(r);
-    }
-
-  if (p.run_as_user)
-    {
-      r = pam_putenv(pamh, "PAM_NO_ROOT=1");
-      if (r != PAM_SUCCESS)
-	{
-	  log_msg(LOG_ERR, "pam_putenv(\"PAM_NO_ROOT=1\") failed: %s", pam_strerror(NULL, r));
-	  return broadcast_and_return(r);
-	}
     }
 
   log_msg(LOG_DEBUG, "pam_chauthok(pamh, %i)", p.flags);
@@ -945,7 +917,6 @@ vl_method_chauthtok(sd_varlink *link, sd_json_variant *parameters,
     .content_passwd = NULL,
     .content_shadow = NULL,
     .link = link,
-    .run_as_user = 0,
   };
   static const sd_json_dispatch_field dispatch_table[] = {
     { "userName", SD_JSON_VARIANT_STRING,  sd_json_dispatch_string, offsetof(struct parameters, name),  SD_JSON_MANDATORY},
@@ -1071,7 +1042,6 @@ vl_method_conv(sd_varlink *link, sd_json_variant *parameters,
     .content_passwd = NULL,
     .content_shadow = NULL,
     .link = link,
-    .run_as_user = 0,
   };
   static const sd_json_dispatch_field dispatch_table[] = {
     { "response", SD_JSON_VARIANT_STRING, sd_json_dispatch_string,  offsetof(struct parameters, response),  SD_JSON_NULLABLE},
@@ -1160,7 +1130,6 @@ vl_method_update_pw_sp(sd_varlink *link, sd_json_variant *parameters,
     .content_passwd = NULL,
     .content_shadow = NULL,
     .link = link,
-    .run_as_user = 0,
   };
   static const sd_json_dispatch_field dispatch_table[] = {
     { "passwd",     SD_JSON_VARIANT_OBJECT,  sd_json_dispatch_variant, offsetof(struct parameters, content_passwd), SD_JSON_NULLABLE },
