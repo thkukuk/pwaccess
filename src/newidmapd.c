@@ -19,13 +19,15 @@
 /* event loop which quits after 30 seconds idle time */
 #define DEFAULT_EXIT_USEC (30*USEC_PER_SEC)
 
+#define UID_MAX ((uid_t)-1)
+
 static int socket_activation = false;
 
 /* XXX unify with newxidmap.c */
 struct map_range {
-  uint64_t upper; /* first ID inside the namespace */
-  uint64_t lower; /* first ID outside the namespace */
-  uint64_t count; /* Length of the inside and outside ranges */
+  int64_t upper; /* first ID inside the namespace */
+  int64_t lower; /* first ID outside the namespace */
+  int64_t count; /* Length of the inside and outside ranges */
 };
 
 static void
@@ -76,7 +78,7 @@ open_pidfd(pid_t pid)
 }
 
 static bool
-verify_range(uid_t uid, uint64_t start, uint64_t count, const struct map_range mapping)
+verify_range(uid_t uid, int64_t start, int64_t count, const struct map_range mapping)
 {
   if (mapping.count == 0)
     return false;
@@ -157,14 +159,14 @@ verify_ranges(uid_t uid, int nranges, const struct map_range *mappings, const ch
   char *ep = NULL;
   errno = 0;
   start = strtol(val, &ep, 10);
-  if (errno == ERANGE || start < -1 || val == ep || *ep != '\0')
+  if (errno == ERANGE || start < -1 || start > UID_MAX || val == ep || *ep != '\0')
     {
       log_msg(LOG_ERR, "Cannot parse 'start' value (%s,%s,%s)", subid_file, user, val);
       return -EINVAL;
     }
   errno = 0;
   count = strtol(cp, &ep, 10);
-  if (errno == ERANGE || count < -1 || cp == ep || *ep != '\0')
+  if (errno == ERANGE || count < -1 || count >= (UID_MAX - start) || cp == ep || *ep != '\0')
     {
       log_msg(LOG_ERR, "Cannot parse 'count' value (%s,%s,%s)", subid_file, user, cp);
       return -EINVAL;
@@ -299,9 +301,9 @@ vl_method_write_mappings(sd_varlink *link, sd_json_variant *parameters,
 	.count = -1,
       };
       static const sd_json_dispatch_field dispatch_entry_table[] = {
-        { "upper", SD_JSON_VARIANT_UNSIGNED, sd_json_dispatch_uint64, offsetof(struct map_range, upper), SD_JSON_MANDATORY },
-        { "lower", SD_JSON_VARIANT_UNSIGNED, sd_json_dispatch_uint64, offsetof(struct map_range, lower), SD_JSON_MANDATORY },
-        { "count", SD_JSON_VARIANT_UNSIGNED, sd_json_dispatch_uint64, offsetof(struct map_range, count), SD_JSON_MANDATORY },
+        { "upper", SD_JSON_VARIANT_UNSIGNED, sd_json_dispatch_int64, offsetof(struct map_range, upper), SD_JSON_MANDATORY },
+        { "lower", SD_JSON_VARIANT_UNSIGNED, sd_json_dispatch_int64, offsetof(struct map_range, lower), SD_JSON_MANDATORY },
+        { "count", SD_JSON_VARIANT_UNSIGNED, sd_json_dispatch_int64, offsetof(struct map_range, count), SD_JSON_MANDATORY },
         {}
       };
 
@@ -324,7 +326,18 @@ vl_method_write_mappings(sd_varlink *link, sd_json_variant *parameters,
 				    SD_JSON_BUILD_PAIR_STRING("ErrorMsg", "Failed to parse MapRanges object"));
         }
 
-      log_msg(LOG_DEBUG, "map_ranges[%i] (%s): upper=%" PRIu64 ", lower=%" PRIu64 ", count=%" PRIu64, i, p.map, e.upper, e.lower, e.count);
+      if (e.upper < 0 || e.upper > UID_MAX ||
+	  e.lower < 0 || e.lower > UID_MAX ||
+	  e.count < 1 || e.count >= (UID_MAX - e.upper))
+	{
+	  log_msg(LOG_ERR, "Invalid map_ranges upper=%" PRIi64 ", lower=%" PRIi64 ", count=%" PRIi64,
+		  e.upper, e.lower, e.count);
+	  return sd_varlink_errorbo(link, "org.openSUSE.newidmapd.InternalError",
+				    SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
+				    SD_JSON_BUILD_PAIR_STRING("ErrorMsg", "Failed to parse MapRanges object"));
+	}
+
+      log_msg(LOG_DEBUG, "map_ranges[%i] (%s): upper=%" PRIi64 ", lower=%" PRIi64 ", count=%" PRIi64, i, p.map, e.upper, e.lower, e.count);
       p.mappings[i] = e;
     }
 
