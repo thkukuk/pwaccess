@@ -39,7 +39,7 @@ map_range_freep(struct map_range **var)
 
 struct parameters {
   pid_t pid;
-  char *map;
+  char *map; /* see varlink interface definition for valid ranges */
   int ranges;
   struct map_range *mappings;
   sd_json_variant *content_map_ranges;
@@ -274,6 +274,13 @@ vl_method_write_mappings(sd_varlink *link, sd_json_variant *parameters,
 				SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
 				SD_JSON_BUILD_PAIR_STRING("ErrorMsg", "No 'Map' entry provided."));
     }
+  if (!streq(p.map, "uid_map") && !streq(p.map, "gid_map"))
+    {
+      log_msg(LOG_ERR, "Map name is neither 'uid_map' nor 'gid_map'.");
+      return sd_varlink_errorbo(link, "org.openSUSE.newidmapd.InvalidParameter",
+				SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
+				SD_JSON_BUILD_PAIR_STRING("ErrorMsg", "Unknown map name provided."));
+    }
 
   if (!sd_json_variant_is_array(p.content_map_ranges))
     {
@@ -350,7 +357,7 @@ vl_method_write_mappings(sd_varlink *link, sd_json_variant *parameters,
 				SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
 				SD_JSON_BUILD_PAIR_STRING("ErrorMsg", "Cannot access '/proc/<pid>'"));
     }
-  if (st.st_uid != peer_uid && st.st_gid != peer_gid)
+  if (st.st_uid != peer_uid || st.st_gid != peer_gid)
     {
       log_msg(LOG_ERR, "PID %i is owned by a different user: peer_uid=%u st_uid=%u peer_gid=%u st_gid=%u",
 	      p.pid, peer_uid, st.st_uid, peer_gid, st.st_gid);
