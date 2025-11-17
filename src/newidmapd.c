@@ -196,7 +196,9 @@ write_mapping(int proc_dir_fd, int ranges, const struct map_range *mappings,
 
   for (int i = 0; i < ranges; i++)
     {
-      if (asprintf(&res, "%s%lu %lu %lu\n", res, mappings[i].upper,
+      _cleanup_free_ char *old_res = res;
+
+      if (asprintf(&res, "%s%lu %lu %lu\n", old_res, mappings[i].upper,
 		   mappings[i].lower, mappings[i].count) == -1)
 	{
 	  log_msg(LOG_ERR, "Out of memory!");
