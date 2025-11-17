@@ -186,6 +186,7 @@ write_mapping(int proc_dir_fd, int ranges, const struct map_range *mappings,
 	      const char *map)
 {
   _cleanup_free_ char *res = NULL;
+  int r;
 
   res = strdup("");
   if (res == NULL)
@@ -212,21 +213,24 @@ write_mapping(int proc_dir_fd, int ranges, const struct map_range *mappings,
   int fd = openat(proc_dir_fd, map, O_WRONLY);
   if (fd < 0)
     {
+      r = -errno;
       log_msg(LOG_ERR, "Failed to open '%s': %s",
-	      map, strerror(errno));
-      exit(EXIT_FAILURE);
+	      map, strerror(-r));
+      return r;
     }
   if (write(fd, res, strlen(res)) == -1)
     {
+      r = -errno;
       log_msg(LOG_ERR, "Failed to write to '%s': %s",
-	      map, strerror(errno));
-      exit(EXIT_FAILURE);
+	      map, strerror(-r));
+      return r;
     }
   if (close(fd) != 0 && errno != EINTR)
     {
+      r = -errno;
       log_msg(LOG_ERR, "Failed to close '%s': %s",
-	      map, strerror(errno));
-      exit(EXIT_FAILURE);
+	      map, strerror(-r));
+      return r;
     }
   return 0;
 }
