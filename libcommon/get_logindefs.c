@@ -61,7 +61,7 @@ get_logindefs_string(const char *key, const char *def)
   if (error != ECONF_SUCCESS)
     {
       fprintf(stderr, "Cannot parse login.defs: %s\n", econf_errString(error));
-      return def;
+      return strdup(def);
     }
 
   error = econf_getStringValueDef(key_file, NULL, key, &val, def);
@@ -70,7 +70,7 @@ get_logindefs_string(const char *key, const char *def)
       if (error != ECONF_NOKEY)
 	fprintf(stderr, "Error reading '%s': %s\n", key,
 		econf_errString(error));
-      return def;
+      return strdup(def);
     }
 
   return val;
