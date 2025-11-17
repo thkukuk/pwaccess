@@ -39,7 +39,20 @@ map_range_freep(struct map_range **var)
 
 struct parameters {
   pid_t pid;
+  /*
+   * So this string is either "uid_map" or "gid_map" depending on client
+   * input. It's not really obvious, though, without diving deep into the
+   * code, so maybe a more descriptive name would help here, or at least a
+   * comment in this spot that explains what this member is used for.
+   *
+   * Another approach could be to just pass an enum value from the client and
+   * translate it into the appropriate basename.
+   */
   char *map;
+  /*
+   * Similarly this variable leaves quite some room for imagination, maybe
+   * `nranges` or `num_ranges` would make things clearer from the start.
+   */
   int ranges;
   struct map_range *mappings;
   sd_json_variant *content_map_ranges;
@@ -85,6 +98,11 @@ verify_range(uid_t uid, uint64_t start, uint64_t count, const struct map_range m
   if ((mapping.count == 1) && (uid == mapping.lower))
     return true;
 
+  /*
+   * If `count` or `mapping.count` are very big then this could lead to an
+   * unsigned integer overflow here and further below. It would make sense to
+   * catch that situation early to avoid any undefined behaviour or loopholes.
+   */
   /* first ID outside namespace must be between start and start+count */
   if (mapping.lower < start || mapping.lower >= start+count)
     return false;
@@ -196,6 +214,9 @@ write_mapping(int proc_dir_fd, int ranges, const struct map_range *mappings,
 
   for (int i = 0; i < ranges; i++)
     {
+      /*
+       * isn't there a memory leak here? Where are the `res` strings ever free()'d again?
+       */
       if (asprintf(&res, "%s%lu %lu %lu\n", res, mappings[i].upper,
 		   mappings[i].lower, mappings[i].count) == -1)
 	{
@@ -207,11 +228,24 @@ write_mapping(int proc_dir_fd, int ranges, const struct map_range *mappings,
   log_msg(LOG_DEBUG, "mapping string: '%s'", res);
 
   /* Write the mapping to the mapping file */
+  /*
+   * just for prudence it would be a good idea to also pass
+   * O_NOFOLLOw|O_CLOEXEC here.
+   */
   int fd = openat(proc_dir_fd, map, O_WRONLY);
   if (fd < 0)
     {
       log_msg(LOG_ERR, "Failed to open '%s': %s",
 	      map, strerror(errno));
+      /*
+       * Why do a hard exit() here and below? It seems there is no controlled
+       * Varlink response in this case. Also, is the daemon's integrity
+       * assumed to be violated in these cases which makes it necessary to exit()?
+       *
+       * At least one of the error paths can be triggered on purpose by
+       * unprivileged clients by passing a PID for a process which already has
+       * a namespace mapping.
+       */
       exit(EXIT_FAILURE);
     }
   if (write(fd, res, strlen(res)) == -1)
@@ -275,6 +309,12 @@ vl_method_write_mappings(sd_varlink *link, sd_json_variant *parameters,
       return -EINVAL;
     }
 
+  /*
+   * would it make sense to impose a limit on the number of ranges early-on?
+   * This results in a `calloc()` based on client input, which can be up to
+   * INT_MAX elements at this point. The client needs to send just as much
+   * data, but it's still better to be careful here, I believe.
+   */
   p.ranges = sd_json_variant_elements(p.content_map_ranges);
   p.mappings = calloc(p.ranges, sizeof(struct map_range));
 
@@ -316,6 +356,18 @@ vl_method_write_mappings(sd_varlink *link, sd_json_variant *parameters,
     }
 
   r = sd_varlink_get_peer_uid(link, &peer_uid);
+  /*
+   * Would it make sense to wrap these repetitive peer UID / GID checks in a
+   * common utility function?
+   *
+   * I'm currently counting up to 10 occurrences of variations of these
+   * checks in the repository.
+   *
+   * Such a utility function could check against UID/GID 0 by default or
+   * optionally against a UID/GID passed into the function, log mismatches and
+   * set a varlink error accordingly. It could also be two separate functions
+   * for UID/GID, of course.
+   */
   if (r < 0)
     {
       log_msg(LOG_ERR, "Failed to get peer UID: %s", strerror(-r));
@@ -344,6 +396,11 @@ vl_method_write_mappings(sd_varlink *link, sd_json_variant *parameters,
 				SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
 				SD_JSON_BUILD_PAIR_STRING("ErrorMsg", "Cannot access '/proc/<pid>'"));
     }
+  /*
+   * Shouldn't this be || instead of &&?
+   * In this version, if multiple UIDs share the same GID then they will all
+   * be allowed to modify each other's mappings.
+   */
   if (st.st_uid != peer_uid && st.st_gid != peer_gid)
     {
       log_msg(LOG_ERR, "PID %i is owned by a different user: peer_uid=%u st_uid=%u peer_gid=%u st_gid=%u",
