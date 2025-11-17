@@ -188,6 +188,7 @@ write_mapping(int proc_dir_fd, int nranges, const struct map_range *mappings,
 	      const char *map)
 {
   _cleanup_free_ char *res = NULL;
+  _cleanup_close_ int fd = -EBADF;
   int r;
 
   res = strdup("");
@@ -212,7 +213,7 @@ write_mapping(int proc_dir_fd, int nranges, const struct map_range *mappings,
   log_msg(LOG_DEBUG, "mapping string: '%s'", res);
 
   /* Write the mapping to the mapping file */
-  int fd = openat(proc_dir_fd, map, O_WRONLY);
+  fd = openat(proc_dir_fd, map, O_WRONLY|O_NOFOLLOW|O_CLOEXEC);
   if (fd < 0)
     {
       r = -errno;
@@ -256,6 +257,7 @@ vl_method_write_mappings(sd_varlink *link, sd_json_variant *parameters,
     { "MapRanges", SD_JSON_VARIANT_ARRAY,    sd_json_dispatch_variant, offsetof(struct parameters, content_map_ranges), SD_JSON_MANDATORY},
     {}
   };
+  _cleanup_close_ int proc_dir_fd = -EBADF;
   uid_t peer_uid;
   gid_t peer_gid;
   int r;
@@ -354,7 +356,7 @@ vl_method_write_mappings(sd_varlink *link, sd_json_variant *parameters,
       return r;
     }
 
-  int proc_dir_fd = open_pidfd(p.pid);
+  proc_dir_fd = open_pidfd(p.pid);
   if (proc_dir_fd < 0)
     return sd_varlink_errorbo(link, "org.openSUSE.newidmapd.InternalError",
 			      SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
