@@ -12,7 +12,7 @@ static SD_VARLINK_DEFINE_METHOD(
 		WriteMappings,
                 SD_VARLINK_FIELD_COMMENT("PID for which to set the map range"),
                 SD_VARLINK_DEFINE_INPUT(PID, SD_VARLINK_INT, 0),
-		SD_VARLINK_FIELD_COMMENT("Which map to use: uid_map or gid_map, default: uid_map"),
+		SD_VARLINK_FIELD_COMMENT("Which map to use: 'uid_map' or 'gid_map'"),
                 SD_VARLINK_DEFINE_INPUT(Map, SD_VARLINK_STRING, 0),
                 SD_VARLINK_FIELD_COMMENT("The map ranges"),
 		SD_VARLINK_DEFINE_INPUT_BY_TYPE(MapRanges, MapRange, SD_VARLINK_ARRAY),
