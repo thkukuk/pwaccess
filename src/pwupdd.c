@@ -1112,9 +1112,9 @@ vl_method_conv(sd_varlink *link, sd_json_variant *parameters,
 }
 
 static int
-vl_method_update_pw_sp(sd_varlink *link, sd_json_variant *parameters,
-		       sd_varlink_method_flags_t _unused_(flags),
-		       void _unused_(*userdata))
+vl_method_UpdatePasswdShadow(sd_varlink *link, sd_json_variant *parameters,
+		             sd_varlink_method_flags_t _unused_(flags),
+		             void _unused_(*userdata))
 {
   _cleanup_(parameters_free) struct parameters p = {
     .name = NULL,
@@ -1270,7 +1270,7 @@ run_varlink (void)
 					  "org.openSUSE.pwupd.Chfn",               vl_method_chfn,
 					  "org.openSUSE.pwupd.Chsh",               vl_method_chsh,
 					  "org.openSUSE.pwupd.Conv",               vl_method_conv,
-					  "org.openSUSE.pwupd.UpdatePasswdShadow", vl_method_update_pw_sp,
+					  "org.openSUSE.pwupd.UpdatePasswdShadow", vl_method_UpdatePasswdShadow,
 					  "org.openSUSE.pwupd.GetEnvironment",     vl_method_get_environment,
 					  "org.openSUSE.pwupd.Ping",               vl_method_ping,
 					  "org.openSUSE.pwupd.Quit",               vl_method_quit,
