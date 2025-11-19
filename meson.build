@@ -149,7 +149,7 @@ executable('pwupdd',
            pwupdd_c,
            include_directories : inc,
 	   link_with : [libcommon, libpwaccess],
-	   dependencies : [libpam, libsystemd, libeconf, libselinux],
+	   dependencies : [libpam, libsystemd, libeconf, libselinux, libcrypt],
            install_dir : libexecdir,
            install : true)
 
@@ -192,7 +192,7 @@ executable('chsh', 'src/chsh.c', 'src/get_value.c',
 executable('passwd', 'src/passwd.c',
            include_directories : inc,
            link_with : [libcommon, libpwaccess],
-           dependencies : [libsystemd, libpam, libpam_misc, libeconf],
+           dependencies : [libsystemd, libpam, libpam_misc, libeconf, libcrypt],
            install : true)
 executable('expiry', 'src/expiry.c',
            include_directories : inc,
