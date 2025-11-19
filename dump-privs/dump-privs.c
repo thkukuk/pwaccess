@@ -10,6 +10,7 @@
 #include <unistd.h>
 #include <getopt.h>
 #include <sys/prctl.h>
+#include <stdbool.h>
 #ifdef WITH_SELINUX
 #include <selinux/selinux.h>
 #endif
