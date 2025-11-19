@@ -292,8 +292,22 @@ vl_method_write_mappings(sd_varlink *link, sd_json_variant *parameters,
       return -EINVAL;
     }
 
-  p.nranges = sd_json_variant_elements(p.content_map_ranges);
+  size_t nranges = sd_json_variant_elements(p.content_map_ranges);
+  /* 340 entries is the kernel limit since 4.16 */
+  if (nranges > 340)
+    {
+      log_msg(LOG_ERR, "Too many MapRanges entries: %i, limit is 340", p.nranges);
+      return sd_varlink_errorbo(link, "org.openSUSE.newidmapd.InvalidParameter",
+				SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
+				SD_JSON_BUILD_PAIR_STRING("ErrorMsg", "Entry 'MapRanges' has too many entries (>340)"));
+    }
+  p.nranges = nranges;
   p.mappings = calloc(p.nranges, sizeof(struct map_range));
+  if (p.mappings == NULL)
+    {
+      log_msg(LOG_ERR, "Out of memory!");
+      return -ENOMEM;
+    }
 
   for (int i = 0; i < p.nranges; i++)
     {
