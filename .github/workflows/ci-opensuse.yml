@@ -3,7 +3,7 @@ name: openSUSE build & test
 on: [push, pull_request]
 
 jobs:
-  build:
+  build-gcc:
     runs-on: ubuntu-latest
     container: registry.opensuse.org/opensuse/tumbleweed:latest
     steps:
@@ -14,6 +14,29 @@ jobs:
       run: |
         zypper ref -f
         zypper --non-interactive in --no-recommends meson gcc libeconf-devel systemd-devel pam-devel libselinux-devel valgrind docbook5-xsl-stylesheets libxslt-tools
+
+    - name: Setup meson
+      run: meson setup build --auto-features=enabled
+
+    - name: Compile code
+      run: meson compile -v -C build
+
+    - name: Run tests
+      run: meson test -v -C build
+
+  build-clang:
+    runs-on: ubuntu-latest
+    env:
+      CC: clang
+    container: registry.opensuse.org/opensuse/tumbleweed:latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Install devel packages
+      run: |
+        zypper ref -f
+        zypper --non-interactive in --no-recommends meson clang llvm-gold gcc libeconf-devel systemd-devel pam-devel libselinux-devel valgrind docbook5-xsl-stylesheets libxslt-tools
 
     - name: Setup meson
       run: meson setup build --auto-features=enabled
