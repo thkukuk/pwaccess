@@ -55,6 +55,15 @@ error_user_not_found(sd_varlink *link, int64_t uid, const char *name)
       if (asprintf(&error, "user not found: %m") < 0)
 	error = NULL;
       log_msg(LOG_ERR, "%s", stroom(error));
+      /*
+       * There is a plethora of these noisy error replies in this unit and
+       * also the other daemons.
+       * Why not introduce a utility function like:
+       *     int error_reply(sd_varlink *link, const char *error_id_base, const char *opt_message);
+       * Then use it like:
+       *     return error_reply(link, "InternalError", stroom(error));
+       * This would increase readability a lot IMHO.
+       */
       return sd_varlink_errorbo(link, "org.openSUSE.pwupd.InternalError",
 				SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
 				SD_JSON_BUILD_PAIR_STRING("ErrorMsg", stroom(error)));
@@ -152,6 +161,18 @@ varlink_conv(int num_msg, const struct pam_message **msgm,
 	  if (r < 0)
 	    log_msg(LOG_ERR, "Failed to build send_v list: %s\n", strerror(-r));
 	  pthread_cond_broadcast(&cond);
+	  /*
+	   * This "unlock then lock again" sequence doesn't make sense.
+	   *
+	   * Beyond that, maybe you can make use of the _cleanup_ attribute for
+	   * smartly unlocking the mutex without having to keep track of all
+	   * code paths.
+	   *
+	   * systemd does this here:
+	   *
+	   * https://github.com/systemd/systemd/blob/7e5a07c24a2e9e439b60c9f7ef9d42fd640cc819/src/basic/pthread-util.h#L13
+	   * https://github.com/systemd/systemd/blob/7e5a07c24a2e9e439b60c9f7ef9d42fd640cc819/src/nss-systemd/nss-systemd.c#L603
+	   */
 	  pthread_mutex_unlock(&mut);
 
 	  /* waiting for answer */
@@ -164,6 +185,7 @@ varlink_conv(int num_msg, const struct pam_message **msgm,
 	      return PAM_BUF_ERR;
 	    }
 	  log_msg(LOG_DEBUG, "varlink_conv: calling pthread_cond_wait");
+	  // predicate loop missing
 	  pthread_cond_wait(&cond, &mut);
 	  response[0]->resp_retcode = 0;
 	  response[0]->resp = answer;
@@ -194,6 +216,17 @@ varlink_conv(int num_msg, const struct pam_message **msgm,
 static void *
 broadcast_and_return(intptr_t r)
 {
+  /* holding the lock while broadcasting is unnecessary and actually
+   * considered performance-hindering, since any threads that are subject to
+   * wake up in fact cannot, because they're blocked on the lock still held by
+   * the signaling thread.
+   *
+   * taking the lock is only needed to change shared data, like an associated
+   * predicate, as pointed out in the other pthread_cond_wait() related comments.
+   *
+   * The same goes for all other invocations of `pthread_cond_broadcast()` in
+   * this unit.
+   */
   pthread_mutex_lock(&mut);
   pthread_cond_broadcast(&cond);
   pthread_mutex_unlock(&mut);
@@ -274,6 +307,13 @@ run_pam_auth(void *arg)
 
       memset(&pw, 0, sizeof(pw));
       pw.pw_name = p.name;
+      /*
+       * Currently the shell needs to be verified by the vl_method_<...>
+       * implementation. Wouldn't it be better to verify it centrally in this
+       * spot here, where it is actually put to use? This way it'd be less
+       * likely that verification of the shell is forgotten, should this ever
+       * be used by additional methods in the future.
+       */
       pw.pw_shell = p.shell;
       r = update_passwd(&pw, NULL);
       if (r < 0)
@@ -286,6 +326,12 @@ run_pam_auth(void *arg)
     }
   else if (p.full_name || p.home_phone || p.other || p.room || p.work_phone)
     {
+      /*
+       * similarly here the currently only user of these fields,
+       * `vl_method_chfn()` verifies these fields, but at this point we don't
+       * really know who passed us the fields and whether they can be trusted,
+       * should additional users of these fields turn up in the future.
+       */
       const char *full_name = NULL;
       const char *home_phone = NULL;
       const char *other = NULL;
@@ -529,6 +575,18 @@ vl_method_chfn(sd_varlink *link, sd_json_variant *parameters,
 				SD_JSON_BUILD_PAIR_STRING("ErrorMsg", stroom(error)));
     }
 
+  /*
+   * so the real UID will never be restored again, which probably is not a
+   * big deal, since the service runs only for the purpose of one dedicated
+   * client connection.
+   *
+   * For clarity, would it be possible to set the real UID during startup for
+   * the whole process? It could be done via
+   * `sd_varlink_server_bind_connect()` to get a callback once the link is
+   * established. This would allow to avoid having to add it this logic to
+   * various method callbacks and the personality of the service would always
+   * be clear from the start.
+   */
   /* Run under the UID of the caller, else pam_unix will not ask
      for old password and pam_rootok will wrongly match. */
   if (peer_uid != 0)
@@ -541,12 +599,45 @@ vl_method_chfn(sd_varlink *link, sd_json_variant *parameters,
 	}
     }
 
+  /*
+   * A PAM thread could already be running here, thus this allows clients to
+   * spawn an infinite number of threads, quickly leading to resource
+   * exhaustion.
+   * All entry points which create a thread need common logic to check for an
+   * already existing PAM thread and error out if this is the case.
+   *
+   * More generally, the way the extra thread is currently handled feels too
+   * confusing. A cleaner approach could be to _always_ create a service
+   * thread which is just sitting there, waiting for requests. The thread
+   * could then keep a state `enum` around which makes clear what is going on
+   * currently, which also makes it easily possible to reject calls that don't
+   * match the current thread state.
+   */
   r = pthread_create(&pam_thread, NULL, &run_pam_auth, &p);
   if (r != 0)
     return return_errno_error(link, "pthread_create", r);
 
   pthread_mutex_lock(&mut);
   log_msg(LOG_DEBUG, "chfn: calling pthread_cond_wait");
+  /*
+   * pthread_cond_wait() can have spurious wakeups:
+   *
+   * https://pubs.opengroup.org/onlinepubs/7908799/xsh/pthread_cond_wait.html
+   *
+   * On the other hand, due to unfortunate scheduling, it can happen that this
+   * thread enters the wait state _after_ the signal has been sent, therefore
+   * blocking forever; a lost wakeup bug.
+   *
+   * Thus `pthread_cond_wait()` should always be used with a predicate on
+   * shared data, a boolean flag or state variable, for example, to know
+   * whether the expected condition has actually been reached, like
+   *
+   * while (!pam_finished) {
+   *    pthread_cond_wait(...);
+   * }
+   *
+   * This goes for all invocations of `pthread_cond_wait()` in this unit.
+   */
   pthread_cond_wait(&cond, &mut);
   pthread_mutex_unlock(&mut);
   log_msg(LOG_DEBUG, "chfn: pthread_cond_wait succeeded");
@@ -560,6 +651,10 @@ vl_method_chfn(sd_varlink *link, sd_json_variant *parameters,
   if (r != 0)
     return return_errno_error(link, "pthread_join", r);
 
+  /*
+   * I'm counting four mostly identical blocks of `pthread_join()` error
+   * handling in this unit. Could be a candidate for a shared helper function.
+   */
   if (thread_res != PAM_SUCCESS)
     {
       int64_t t = (int64_t)thread_res;
@@ -628,6 +723,9 @@ check_shell(const char *shell, uid_t uid, char **msg)
 {
   if (*shell != '/')
     {
+      /* there aren't any callers of this function that pass a NULL pointer. I'd
+       * replace this by an assert(msg) and simplify the code.
+       */
       if (msg)
 	*msg = strdup("Shell must be a full path name.");
       if (uid)
@@ -658,6 +756,7 @@ check_shell(const char *shell, uid_t uid, char **msg)
   for (size_t i = 0; i < strlen(shell); i++)
     {
       char c = shell[i];
+      // hint: '\n' is already covered by `iscntrl()` below
       if (c == ',' || c == ':' || c == '=' || c == '"' || c == '\n')
         {
 	  if (msg)
@@ -679,6 +778,12 @@ check_shell(const char *shell, uid_t uid, char **msg)
     {
       if (msg)
 	{
+	  /*
+	   * for uid == 0 it can happen that the "Shell must be a full path
+	   * name." warning above occurs and then also this one here.
+	   * Apart from losing a warning, this is also a memory leak, I
+	   * believe.
+	   */
 	  if (asprintf(msg, "%s: '%s' is not listed as valid login shell.", uid?"Error":"Warning", shell) < 0)
 	    *msg = NULL;
 	}
@@ -710,6 +815,9 @@ vl_method_chsh(sd_varlink *link, sd_json_variant *parameters,
     .content_shadow = NULL,
     .link = link,
   };
+  /*
+   * why accept "flags" here? AFAICS this is only used in `pam_chauthtok`, not in this context.
+   */
   static const sd_json_dispatch_field dispatch_table[] = {
     { "userName", SD_JSON_VARIANT_STRING,  sd_json_dispatch_string, offsetof(struct parameters, name),  SD_JSON_MANDATORY},
     { "shell",    SD_JSON_VARIANT_STRING,  sd_json_dispatch_string, offsetof(struct parameters, shell), SD_JSON_MANDATORY},
@@ -797,6 +905,7 @@ vl_method_chsh(sd_varlink *link, sd_json_variant *parameters,
 
   pthread_mutex_lock(&mut);
   log_msg(LOG_DEBUG, "chsh: calling pthread_cond_wait");
+  // while (predicate) missing
   pthread_cond_wait(&cond, &mut);
   pthread_mutex_unlock(&mut);
   log_msg(LOG_DEBUG, "chsh: pthread_cond_wait succeeded");
@@ -838,6 +947,23 @@ static void *
 run_pam_chauthtok(void *arg)
 {
   struct parameters *param = arg;
+  /*
+   * why copy over all the individual fields this way?
+   * is this required to apply the `_cleanup_` attribute?
+   *
+   * In systemd they have a special wrapper macro to allow passing pointers to the
+   * cleanup function instead:
+   *
+   * https://github.com/systemd/systemd/blob/6077791b3a2cdcd92c369f70f730e5b2c3e8274b/src/systemd/_sd-common.h#L102
+   *
+   * seen in use here:
+   *
+   * https://github.com/systemd/systemd/blob/6077791b3a2cdcd92c369f70f730e5b2c3e8274b/src/systemd/sd-event.h#L182
+   * https://github.com/systemd/systemd/blob/6077791b3a2cdcd92c369f70f730e5b2c3e8274b/src/udev/udev-watch.c#L610
+   *
+   * this would allow you to use the pointer as is, avoiding the noisy "copy
+   * definition" here.
+   */
   _cleanup_(parameters_free) struct parameters p = {
     .pam_service = param->pam_service,
     .name = param->name,
@@ -892,6 +1018,17 @@ vl_method_chauthtok(sd_varlink *link, sd_json_variant *parameters,
 		    sd_varlink_method_flags_t _unused_(flags),
 		    void _unused_(*userdata))
 {
+  /*
+   * You could still declare this as `_cleanup_(parameters_free)`, if you make
+   * `parameters_free()` robust against NULL pointers that are passed to it.
+   * Then you can make a clear cut below, when the ownership is passed to the
+   * thread, assign NULL to `p` after the thread has been successfully started,
+   * so that the cleanup logic won't run in this thread's context.
+   *
+   * Passing of ownership this way still feels strange to me, though. I think
+   * what could really be needed here is a heap allocated, reference counted
+   * object, which can easily be shared between different contexts.
+   */
   /* don't free, can be still in use by the pam thread */
   struct parameters p = {
     .pam_service = "pwupd-passwd",
@@ -980,6 +1117,7 @@ vl_method_chauthtok(sd_varlink *link, sd_json_variant *parameters,
 
   pthread_mutex_lock(&mut);
   log_msg(LOG_DEBUG, "chauthtok: calling pthread_cond_wait");
+  // predicate loop missing
   pthread_cond_wait(&cond, &mut);
   pthread_mutex_unlock(&mut);
   log_msg(LOG_DEBUG, "chauthtok: pthread_cond_wait succeeded");
@@ -1028,6 +1166,17 @@ vl_method_conv(sd_varlink *link, sd_json_variant *parameters,
     .content_shadow = NULL,
     .link = link,
   };
+  /* the `struct parameters` keeps all possible arguments that are ever
+   * used by any of the Varlink methods offered by this service. This makes
+   * the code rather hard to read due to the additional noise. In this context
+   * here only the `response` field will ever be used.
+   *
+   * Maybe you can come up with more specialized structs for the various types
+   * of Varlink methods. This could also involve some form of simple object
+   * orientation, a primitive "base class" struct which can contain common
+   * base fields like the `link` which will be used by general-purpose
+   * functions like `varlink_conv()`.
+   */
   static const sd_json_dispatch_field dispatch_table[] = {
     { "response", SD_JSON_VARIANT_STRING, sd_json_dispatch_string,  offsetof(struct parameters, response),  SD_JSON_NULLABLE},
     {}
@@ -1037,11 +1186,22 @@ vl_method_conv(sd_varlink *link, sd_json_variant *parameters,
   log_msg(LOG_INFO, "Varlink method \"conv\" called...");
 
   /* make sure there is a pam_start() thread running! */
+  /*
+   * formally comparison of `pthread_t` against an integer is undefined,
+   * since it is an opaque type. I would rather allocate pthread_t on the
+   * heap, to make it NULLable, or keep a separate bool around to indicate
+   * whether `pam_thread` is valid, or not.
+   */
   if (pam_thread != 0)
     r = pthread_kill(pam_thread, 0);
   else
     r = ENOENT;
   if (r != 0)
+    /*
+     * it's kind of an implementation detail that a PAM thread is running
+     * here, so a more helpful message for clients could be something like
+     * "no PAM context found".
+     */
     return return_errno_error(link, "Finding PAM thread", r);
 
   r = sd_varlink_dispatch(p.link, parameters, dispatch_table, &p);
@@ -1051,6 +1211,8 @@ vl_method_conv(sd_varlink *link, sd_json_variant *parameters,
   /* set pam_response */
   pthread_mutex_lock(&mut);
   log_msg(LOG_DEBUG, "conv: set response and send cond_broadcast");
+  // `send_v` being NULL at this point would be an integrity error, right?
+  // So an `assert()` might be better suited.
   if (send_v != NULL)
     sd_json_variant_unref(send_v);
   send_v = NULL;
@@ -1059,11 +1221,13 @@ vl_method_conv(sd_varlink *link, sd_json_variant *parameters,
   else
     answer = NULL;
   pthread_cond_broadcast(&cond);
+  // another sequence of unlock & lock which doesn't make sense
   pthread_mutex_unlock(&mut);
 
   /* wait for next PAM_PROMPT_ECHO_* message or exit */
   pthread_mutex_lock(&mut);
   log_msg(LOG_DEBUG, "conv: calling pthread_cond_wait");
+  // This needs to check a predicate as well, as in the other similar spots I mentioned.
   pthread_cond_wait(&cond, &mut);
   pthread_mutex_unlock(&mut);
   log_msg(LOG_DEBUG, "conv: pthread_cond_wait succeeded");
@@ -1098,6 +1262,12 @@ vl_method_UpdatePasswdShadow(sd_varlink *link, sd_json_variant *parameters,
 		             sd_varlink_method_flags_t _unused_(flags),
 		             void _unused_(*userdata))
 {
+  /*
+   * if you are going to stick to this one-for-all `parameters` struct then it
+   * would be helpful to use a shared `init_parameters(struct parameters*,
+   * sd_varlink*)` or similar helper function to avoid this NULL
+   * initialization noise.
+   */
   _cleanup_(parameters_free) struct parameters p = {
     .name = NULL,
     .shell = NULL,
@@ -1109,6 +1279,14 @@ vl_method_UpdatePasswdShadow(sd_varlink *link, sd_json_variant *parameters,
     .old_gecos = NULL,
     .response = NULL,
     .flags = 0,
+    /*
+     * These two content_ fields aren't used outside this function, so
+     * couldn't they be local stack variables instead?
+     * I couldn't find any clear documentation on `sd_json_dispatch_string()`
+     * just now, but the implementation does return a `strdup()'ed` pointer,
+     * so once `sd_json_dispatch()` has been called below it shouldn't be
+     * necessary to keep these `sd_json_variant` pointers around anymore.
+     */
     .content_passwd = NULL,
     .content_shadow = NULL,
     .link = link,
@@ -1158,9 +1336,14 @@ vl_method_UpdatePasswdShadow(sd_varlink *link, sd_json_variant *parameters,
   if (r < 0)
     return return_errno_error(link, "UpdatePasswdShadow - varlink dispatch", r);
 
+  /*
+   * couldn't this be declared as SD_JSON_REFUSE_NULL and let it be handled by
+   * `sd_varlink_dispatch()` automatically?
+   */
   if (sd_json_variant_is_null(p.content_passwd))
     {
       log_msg(LOG_ERR, "UpdatePasswdShadow request: no entry found\n");
+      // shouldn't this rather return an error code?
       return 0;
     }
 
