@@ -60,7 +60,7 @@ selinux_status(pam_handle_t *pamh)
 
 /* XXX add flags */
 static void
-log_debug_info(pam_handle_t *pamh, const char *type, int flags)
+log_info(pam_handle_t *pamh, const char *type, int flags, int loglevel)
 {
   _cleanup_(freeconp) char *secon = NULL;
   const void *service = NULL;
@@ -81,7 +81,7 @@ log_debug_info(pam_handle_t *pamh, const char *type, int flags)
   login_name = pam_modutil_getlogin(pamh);
 
   /* XXX split flags in single bits with defines */
-  pam_syslog(pamh, LOG_DEBUG,
+  pam_syslog(pamh, loglevel,
              "service=%s type=%s flags=%d "
              "logname=%s uid=%u euid=%u "
              "tty=%s ruser=%s rhost=%s "
@@ -94,50 +94,112 @@ log_debug_info(pam_handle_t *pamh, const char *type, int flags)
 	     selinux_status(pamh), secon?", context=":"", secon?secon:"");
 }
 
+static int
+parse_args(pam_handle_t *pamh, int flags _unused_, int argc, const char **argv,
+           int *loglevel)
+{
+  *loglevel = LOG_DEBUG;
+
+  /* step through arguments */
+  for (; argc-- > 0; ++argv)
+    {
+      const char *cp;
+
+      if ((cp = startswith(*argv, "loglevel=")) != NULL)
+	{
+	  if (streq(cp, "debug"))
+	    *loglevel = LOG_DEBUG;
+	  else if (streq(cp, "info"))
+	    *loglevel = LOG_INFO;
+	  else if (streq(cp, "notice"))
+	    *loglevel = LOG_NOTICE;
+	  else if (streq(cp, "warning"))
+	    *loglevel = LOG_WARNING;
+	  else if (streq(cp, "error"))
+	    *loglevel = LOG_ERR;
+	  else if (streq(cp, "critical"))
+	    *loglevel = LOG_CRIT;
+	  else if (streq(cp, "alert"))
+	    *loglevel = LOG_ALERT;
+	  else if (streq(cp, "emerg"))
+	    *loglevel = LOG_EMERG;
+	  else
+	    pam_syslog(pamh, LOG_ERR, "Unknown loglevel value: %s", cp);
+	}
+      else
+	pam_syslog(pamh, LOG_ERR, "Unknown option: %s", *argv);
+    }
+  return 0;
+}
+
 int
 pam_sm_acct_mgmt(pam_handle_t *pamh, int flags,
-		 int argc _unused_, const char **argv _unused_)
+		 int argc, const char **argv)
 {
-  log_debug_info(pamh, "account", flags);
+  int loglevel;
+
+  parse_args(pamh, flags, argc, argv, &loglevel);
+
+  log_info(pamh, "account", flags, loglevel);
   return PAM_IGNORE;
 }
 
 int
 pam_sm_authenticate(pam_handle_t *pamh, int flags,
-		    int argc _unused_, const char **argv _unused_)
+		    int argc, const char **argv)
 {
-  log_debug_info(pamh, "auth", flags);
+  int loglevel;
+
+  parse_args(pamh, flags, argc, argv, &loglevel);
+
+  log_info(pamh, "auth", flags, loglevel);
   return PAM_IGNORE;
 }
 
 int
 pam_sm_setcred(pam_handle_t *pamh, int flags,
-	       int argc _unused_, const char **argv _unused_)
+	       int argc, const char **argv)
 {
-  log_debug_info(pamh, "setcred", flags);
+  int loglevel;
+
+  parse_args(pamh, flags, argc, argv, &loglevel);
+
+  log_info(pamh, "setcred", flags, loglevel);
   return PAM_IGNORE;
 }
 
 int
 pam_sm_chauthtok(pam_handle_t *pamh, int flags,
-		 int argc _unused_, const char **argv _unused_)
+		 int argc, const char **argv)
 {
-  log_debug_info(pamh, "password", flags);
+  int loglevel;
+
+  parse_args(pamh, flags, argc, argv, &loglevel);
+
+  log_info(pamh, "password", flags, loglevel);
   return PAM_IGNORE;
 }
 
 int
 pam_sm_open_session(pam_handle_t *pamh, int flags,
-                    int argc _unused_, const char **argv _unused_)
+                    int argc, const char **argv)
 {
-  log_debug_info(pamh, "session(open)", flags);
+  int loglevel;
+
+  parse_args(pamh, flags, argc, argv, &loglevel);
+
+  log_info(pamh, "session(open)", flags, loglevel);
   return PAM_IGNORE;
 }
 
 int
 pam_sm_close_session(pam_handle_t *pamh, int flags,
-		     int argc _unused_, const char **argv _unused_)
+		     int argc, const char **argv)
 {
-  log_debug_info(pamh, "session(close)", flags);
+  int loglevel;
+
+  parse_args(pamh, flags, argc, argv, &loglevel);
+
+  log_info(pamh, "session(close)", flags, loglevel);
   return PAM_IGNORE;
 }

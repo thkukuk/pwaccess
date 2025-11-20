@@ -219,7 +219,8 @@ pam_unix_ng = shared_library(
   install_dir : pamlibdir
 )
 
-pam_debuginfo_c = ['src/pam_debuginfo.c', 'libcommon/no_new_privs.c']
+pam_debuginfo_c = ['src/pam_debuginfo.c', 'libcommon/no_new_privs.c',
+                   'libcommon/string-util-fundamental.c']
 
 pam_debuginfo = shared_library(
   'pam_debuginfo',

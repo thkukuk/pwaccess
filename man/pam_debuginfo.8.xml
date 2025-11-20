@@ -14,6 +14,9 @@
   <refsynopsisdiv>
     <cmdsynopsis sepchar=" ">
       <command>pam_debuginfo.so</command>
+      <arg choice="opt" rep="norepeat">
+        ...
+      </arg>
     </cmdsynopsis>
   </refsynopsisdiv>
 
@@ -33,6 +36,27 @@
       <listitem><para>SELinux status</para></listitem>
       <listitem><para>NoNewPrivs status</para></listitem>
     </itemizedlist>
+  </refsect1>
+
+  <refsect1>
+    <title>OPTIONS</title>
+    <variablelist>
+      <varlistentry>
+        <term>
+          <option>loglevel=</option><replaceable>level</replaceable>
+        </term>
+        <listitem>
+          <para>
+            Define with which
+            <citerefentry>
+              <refentrytitle>syslog</refentrytitle><manvolnum>3</manvolnum>
+            </citerefentry>
+	    level the information should be printed. Valid values are debug,
+	    info, notice, warning, error, critical, alert and emerg.
+          </para>
+        </listitem>
+      </varlistentry>
+    </variablelist>
   </refsect1>
 
   <refsect1>
