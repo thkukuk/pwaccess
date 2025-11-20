@@ -188,6 +188,10 @@ main(int argc, char **argv)
   printf("SELinux Status:    %s\n", sestatus);
   if (getcon(&secon) == 0)
     {
+      size_t secon_len = strlen(secon);
+
+      if (secon[secon_len-1] == '\n')
+	secon[secon_len-1] = '\0';
       printf("SELinux Context:   %s\n",   secon);
       freecon(secon); /* Free the memory allocated by getcon() */
     }
