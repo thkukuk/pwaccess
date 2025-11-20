@@ -395,10 +395,7 @@ vl_method_chfn(sd_varlink *link, sd_json_variant *parameters,
 
   r = sd_varlink_get_peer_uid(link, &peer_uid);
   if (r < 0)
-    {
-      log_msg(LOG_ERR, "Failed to get peer UID: %s", strerror(-r));
-      return r;
-    }
+    return return_errno_error(link, "Get peer UID", r);
 
   r = sd_varlink_dispatch(p.link, parameters, dispatch_table, &p);
   if (r < 0)
@@ -726,17 +723,11 @@ vl_method_chsh(sd_varlink *link, sd_json_variant *parameters,
 
   r = sd_varlink_get_peer_uid(link, &peer_uid);
   if (r < 0)
-    {
-      log_msg(LOG_ERR, "Failed to get peer UID: %s", strerror(-r));
-      return r;
-    }
+    return return_errno_error(link, "Get peer UID", r);
 
   r = sd_varlink_dispatch(p.link, parameters, dispatch_table, &p);
   if (r < 0)
-    {
-      log_msg(LOG_ERR, "chsh request: varlink dispatch failed: %s", strerror(-r));
-      return r;
-    }
+    return return_errno_error(link, "chsh request: varlink dispatch", r);
 
   if (isempty(p.name))
     {
@@ -930,17 +921,11 @@ vl_method_chauthtok(sd_varlink *link, sd_json_variant *parameters,
 
   r = sd_varlink_get_peer_uid(link, &peer_uid);
   if (r < 0)
-    {
-      log_msg(LOG_ERR, "Failed to get peer UID: %s", strerror(-r));
-      return r;
-    }
+    return return_errno_error(link, "Get peer UID", r);
 
   r = sd_varlink_dispatch(p.link, parameters, dispatch_table, &p);
   if (r < 0)
-    {
-      log_msg(LOG_ERR, "chauthtok: varlink dispatch failed: %s", strerror(-r));
-      return r;
-    }
+    return return_errno_error(link, "chauthtok: varlink dispatch", r);
 
   if (isempty(p.name))
     {
@@ -1061,10 +1046,7 @@ vl_method_conv(sd_varlink *link, sd_json_variant *parameters,
 
   r = sd_varlink_dispatch(p.link, parameters, dispatch_table, &p);
   if (r < 0)
-    {
-      log_msg(LOG_ERR, "Conv request: varlink dispatch failed: %s", strerror(-r));
-      return r;
-    }
+    return return_errno_error(link, "Conv request: varlink dispatch", r);
 
   /* set pam_response */
   pthread_mutex_lock(&mut);
