@@ -82,6 +82,49 @@ mkostemp_safe(char *pattern)
 }
 
 static int
+close_and_rename(FILE **oldf, FILE **newf, int gotit, const char *tmpfn,
+		 const char *origfn, const char *oldfn)
+{
+  int r;
+
+  r = fclose(*oldf);
+  *oldf = NULL;
+  if (r < 0)
+    return -errno;
+
+  r = fflush(*newf);
+  if (r < 0)
+    return -errno;
+
+  r = fsync(fileno(*newf));
+  if (r < 0)
+    return -errno;
+
+  r = fclose(*newf);
+  *newf = NULL;
+  if (r < 0)
+    return -errno;
+
+  if (gotit == 0)
+    {
+      /* entry not found */
+      unlink(tmpfn);
+      return -ENOENT;
+    }
+
+  unlink(oldfn);
+  r = link(origfn, oldfn);
+  if (r < 0)
+    return -errno;
+
+  r = rename(tmpfn, origfn);
+  if (r < 0)
+    return -errno;
+
+  return 0;
+}
+
+static int
 update_passwd_locked(struct passwd *newpw, const char *etcdir)
 {
   _cleanup_(unlink_and_free_tempfilep) char *tmpfn = NULL;
@@ -173,39 +216,9 @@ update_passwd_locked(struct passwd *newpw, const char *etcdir)
 	return -errno;
     }
 
-  r = fclose(oldf);
-  oldf = NULL;
+  r = close_and_rename(&oldf, &newf, gotit, tmpfn, passwd_orig, passwd_old);
   if (r < 0)
-    return -errno;
-
-  r = fflush(newf);
-  if (r < 0)
-    return -errno;
-
-  r = fsync(fileno(newf));
-  if (r < 0)
-    return -errno;
-
-  r = fclose(newf);
-  newf = NULL;
-  if (r < 0)
-    return -errno;
-
-  if (gotit == 0)
-    {
-      /* entry not found */
-      unlink(tmpfn);
-      return -ENOENT;
-    }
-
-  unlink(passwd_old);
-  r = link(passwd_orig, passwd_old);
-  if (r < 0)
-    return -errno;
-
-  r = rename(tmpfn, passwd_orig);
-  if (r < 0)
-    return -errno;
+    return r;
 
   return 0;
 }
@@ -357,39 +370,9 @@ update_shadow_locked(struct spwd *newsp, const char *etcdir)
 	}
     }
 
-  r = fclose(oldf);
-  oldf = NULL;
+  r = close_and_rename(&oldf, &newf, gotit, tmpfn, shadow_orig, shadow_old);
   if (r < 0)
-    return -errno;
-
-  r = fflush(newf);
-  if (r < 0)
-    return -errno;
-
-  r = fsync(fileno(newf));
-  if (r < 0)
-    return -errno;
-
-  r = fclose(newf);
-  newf = NULL;
-  if (r < 0)
-    return -errno;
-
-  if (gotit == 0)
-    {
-      /* entry not found */
-      unlink(tmpfn);
-      return -ENOENT;
-    }
-
-  unlink(shadow_old);
-  r = link(shadow_orig, shadow_old);
-  if (r < 0)
-    return -errno;
-
-  r = rename(tmpfn, shadow_orig);
-  if (r < 0)
-    return -errno;
+    return r;
 
   return 0;
 }
