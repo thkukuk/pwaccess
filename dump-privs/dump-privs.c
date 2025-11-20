@@ -115,6 +115,7 @@ main(int argc, char **argv)
   int ngids = 0;
   gid_t *gids = NULL;
   char *secon = NULL;
+  char *cwd = NULL;
   int no_new_privs = prctl(PR_GET_NO_NEW_PRIVS, 0, 0, 0, 0);
   const char *sestatus = selinux_status();
   int r;
@@ -193,6 +194,15 @@ main(int argc, char **argv)
   else
     fprintf(stderr, "SELinux Context:   %s\n", strerror(errno));
   printf("NoNewPrivs Status: %s\n", no_new_privs==0?"off":"on");
+
+  cwd = get_current_dir_name();
+  if (cwd == NULL)
+    fprintf(stderr, "Current directory: %s\n", strerror(errno));
+  else
+    {
+      printf("Current directory: %s\n", cwd);
+      free(cwd);
+    }
 
   if (printenv)
     {
