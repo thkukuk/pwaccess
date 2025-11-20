@@ -143,9 +143,7 @@ varlink_conv(int num_msg, const struct pam_message **msgm,
         case PAM_PROMPT_ECHO_ON:
         case PAM_PROMPT_ECHO_OFF:
 	  pthread_mutex_lock(&mut);
-	  if (send_v != NULL)
-	    sd_json_variant_unref(send_v);
-	  send_v = NULL;
+	  send_v = sd_json_variant_unref(send_v);
 	  r = sd_json_variant_merge_objectbo(&send_v,
 					     SD_JSON_BUILD_PAIR_INTEGER("msg_style", msgm[count]->msg_style),
 					     SD_JSON_BUILD_PAIR("message", SD_JSON_BUILD_STRING(msgm[count]->msg)));
@@ -194,9 +192,9 @@ varlink_conv(int num_msg, const struct pam_message **msgm,
 static void *
 broadcast_and_return(intptr_t r)
 {
-  pthread_mutex_lock(&mut);
+  // pthread_mutex_lock(&mut);
   pthread_cond_broadcast(&cond);
-  pthread_mutex_unlock(&mut);
+  // pthread_mutex_unlock(&mut);
 
   return (void *)r;
 }
@@ -991,7 +989,7 @@ vl_method_chauthtok(sd_varlink *link, sd_json_variant *parameters,
   intptr_t *thread_res = NULL;
   r = pthread_join(pam_thread, (void **)&thread_res);
   if (r != 0)
-    return return_errno_error(link, "pthread_joind", errno);
+    return return_errno_error(link, "pthread_join", errno);
 
   if (thread_res != PAM_SUCCESS)
     {
@@ -1051,9 +1049,7 @@ vl_method_conv(sd_varlink *link, sd_json_variant *parameters,
   /* set pam_response */
   pthread_mutex_lock(&mut);
   log_msg(LOG_DEBUG, "conv: set response and send cond_broadcast");
-  if (send_v != NULL)
-    sd_json_variant_unref(send_v);
-  send_v = NULL;
+  send_v = sd_json_variant_unref(send_v);
   if (p.response)
     answer = strdup(p.response);
   else
