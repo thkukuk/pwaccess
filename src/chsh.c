@@ -4,6 +4,7 @@
 
 #include <pwd.h>
 #include <getopt.h>
+#include <locale.h>
 #include <shadow.h>
 #include <stdbool.h>
 #include <systemd/sd-daemon.h>
@@ -83,6 +84,8 @@ main(int argc, char **argv)
 {
   char *new_shell = NULL;
   int l_flag = 0;
+
+  setlocale(LC_ALL, "");
 
   while (1)
     {

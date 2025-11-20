@@ -5,6 +5,7 @@
 #include <pwd.h>
 #include <getopt.h>
 #include <shadow.h>
+#include <locale.h>
 #include <stdbool.h>
 #include <systemd/sd-daemon.h>
 #include <systemd/sd-varlink.h>
@@ -110,6 +111,8 @@ main(int argc, char **argv)
   const char *user = NULL;
   _cleanup_free_ char *error = NULL;
   int r;
+
+  setlocale(LC_ALL, "");
 
   while (1)
     {

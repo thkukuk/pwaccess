@@ -97,11 +97,14 @@ mbstowcs_alloc (const char *string, wchar_t **ret)
     return -EINVAL;
 
   size = mbstowcs(NULL, string, 0);
+  if (size == (size_t) -1)
+    return -EINVAL;
+
   buf = calloc(size + 1, sizeof(wchar_t));
   if (buf == NULL)
     return -ENOMEM;
 
-  size = mbstowcs (buf, string, size);
+  size = mbstowcs(buf, string, size);
   if (size == (size_t) -1)
     return -EINVAL;
 

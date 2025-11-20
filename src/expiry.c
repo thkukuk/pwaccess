@@ -4,6 +4,7 @@
 
 #include <errno.h>
 #include <stdio.h>
+#include <locale.h>
 #include <getopt.h>
 #include <security/pam_appl.h>
 
@@ -44,6 +45,8 @@ main(int argc, char **argv)
   int cflg = 0;
   int fflg = 0;
   int r;
+
+  setlocale(LC_ALL, "");
 
   while (1)
     {

@@ -5,6 +5,7 @@
 #include <errno.h>
 #include <pwd.h>
 #include <time.h>
+#include <locale.h>
 #include <getopt.h>
 #include <shadow.h>
 #include <stdbool.h>
@@ -297,6 +298,8 @@ main(int argc, char **argv)
   int i_flag = 0;
   int l_flag = 0;
   int r;
+
+  setlocale(LC_ALL, "");
 
   while (1)
     {
