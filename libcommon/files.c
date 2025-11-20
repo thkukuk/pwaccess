@@ -301,6 +301,11 @@ update_shadow_locked(struct spwd *newsp, const char *etcdir)
   assert(newsp);
   assert(etcdir);
 
+  /*
+   * the following code up to the while loop looks like an excellent
+   * candidate for moving it into a helper function which is shared by
+   * `update_passwd_locked()`.
+   */
   if (asprintf(&shadow_orig, "%s/shadow", etcdir) < 0)
     return -ENOMEM;
   if (asprintf(&shadow_old, "%s/shadow-", etcdir) < 0)
@@ -356,6 +361,11 @@ update_shadow_locked(struct spwd *newsp, const char *etcdir)
 	    return -errno;
 	}
     }
+
+  /*
+   * similarly the following code could be placed into a utility function
+   * shared with update_passwd_locked()
+   */
 
   r = fclose(oldf);
   oldf = NULL;
