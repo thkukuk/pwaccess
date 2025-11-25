@@ -618,61 +618,67 @@ is_known_shell(const char *shell)
 }
 
 /* If the shell is completely invalid, print an error and
-   return 1. If root changes the shell, print only a warning.
+   return false. If root changes the shell, print only a warning.
    Only exception: Invalid characters are always not allowed.  */
-static int
-check_shell(const char *shell, uid_t uid, char **msg)
+static bool
+valid_shell(const char *shell, uid_t uid, char **msg)
 {
+  /* Keep /etc/passwd clean. This is always required, even for root. */
+  for (size_t i = 0; i < strlen(shell); i++)
+    {
+      char c = shell[i];
+
+      if (iscntrl (c))
+        {
+          if (msg)
+	    *msg = strdup("Error: control characters are not allowed.");
+          return false;
+        }
+
+      if (c == ',' || c == ':' || c == '=' || c == '"')
+        {
+	  if (msg)
+	    {
+	      if (asprintf(msg, "Error: '%c' is not allowed.", c) < 0)
+		*msg = NULL;
+	    }
+          return false;
+        }
+    }
+
+  /* Check if the shell exists and is known.
+     Error for normal users, warning only for root */
   if (*shell != '/')
     {
       if (msg)
-	*msg = strdup("Shell must be a full path name.");
+	{
+	  if (asprintf(msg, "%s: shell must be a full path name.", uid?"Error":"Warning") < 0)
+	    *msg = NULL;
+	}
       if (uid)
-        return 1;
+        return false;
     }
   else if (access(shell, F_OK) < 0)
     {
       if (msg)
 	{
-	  if (asprintf(msg, "'%s' does not exist.", shell) < 0)
+	  if (asprintf(msg, "%s: '%s' does not exist.", uid?"Error":"Warning", shell) < 0)
 	    *msg = NULL;
 	}
       if (uid)
-        return 1;
+        return false;
     }
   else if (access(shell, X_OK) < 0)
     {
       if (msg)
 	{
-	  if (asprintf(msg, "'%s' is not executable.", shell) < 0)
+	  if (asprintf(msg, "%s: '%s' is not executable.", uid?"Error":"Warning", shell) < 0)
 	    *msg = NULL;
 	}
       if (uid)
-        return 1;
+        return false;
     }
-
-  /* keep /etc/passwd clean. */
-  for (size_t i = 0; i < strlen(shell); i++)
-    {
-      char c = shell[i];
-      if (c == ',' || c == ':' || c == '=' || c == '"' || c == '\n')
-        {
-	  if (msg)
-	    {
-	      if (asprintf(msg, "'%c' is not allowed.", c) < 0)
-		*msg = NULL;
-	    }
-          return 1;
-        }
-      if (iscntrl (c))
-        {
-          if (msg)
-	    *msg = strdup("Control characters are not allowed.");
-          return 1;
-        }
-    }
-
-  if (!is_known_shell(shell))
+  else if (!is_known_shell(shell))
     {
       if (msg)
 	{
@@ -680,9 +686,9 @@ check_shell(const char *shell, uid_t uid, char **msg)
 	    *msg = NULL;
 	}
       if (uid)
-	return 1;
+	return false;
     }
-  return 0;
+  return true;
 }
 
 static int
@@ -761,10 +767,9 @@ vl_method_chsh(sd_varlink *link, sd_json_variant *parameters,
     }
 
   _cleanup_free_ char *msg = NULL;
-  r = check_shell(p.shell, peer_uid, &msg);
-  if (r != 0)
+  if (!valid_shell(p.shell, peer_uid, &msg))
     {
-      log_msg(LOG_ERR, "chsh (check_shell): %s", stroom(msg));
+      log_msg(LOG_ERR, "%s", stroom(msg));
       parameters_free(&p);
       return sd_varlink_errorbo(link, "org.openSUSE.pwupd.InvalidShell",
 				SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
