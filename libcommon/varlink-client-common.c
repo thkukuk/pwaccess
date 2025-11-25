@@ -88,13 +88,24 @@ reply_callback(sd_varlink *link _unused_,
   };
   int r;
 
-  if (error) /* XXX dispatch result_table to get better error message */
+  if (error)
     {
-     /* If we can translate this to an errno, let's print that as errno and return it, otherwise, return a generic error code */
-     r = sd_varlink_error_to_errno(error, parameters);
-     fprintf(stderr, "Method call failed: %s\n", error);
+      r = sd_json_dispatch(parameters, dispatch_result_table, SD_JSON_ALLOW_EXTENSIONS, &p);
+      if (r < 0)
+	{
+	  /* Mandatory field not found, so no pam_message but final end message */
+	  fprintf(stderr, "Failed to parse JSON answer (result) for error '%s': %s\n", error, strerror(-r));
+	  return r;
+	}
+      if (p.success || !p.error) /* Oops, something did go wrong */
+	fprintf(stderr, "Method call failed: %s\n", error);
+      else
+	fprintf(stderr, "%s\n", p.error);
 
-     return r;
+      /* If we can translate this to an errno, let's print that as errno
+	 and return it, otherwise, return a generic error code. */
+      r = sd_varlink_error_to_errno(error, parameters);
+      return r;
     }
 
   //sd_json_variant_dump(parameters, SD_JSON_FORMAT_NEWLINE, stdout, NULL);
@@ -118,7 +129,7 @@ reply_callback(sd_varlink *link _unused_,
 	if (!p.success)
 	  {
 	    if (p.error)
-	      fprintf(stderr, "Error while changing account data: %s.\n", p.error);
+	      fprintf(stderr, "%s\n", p.error);
 	    else
 	      fprintf(stderr, "Error while changing account data.\n");
 	    return 1;
