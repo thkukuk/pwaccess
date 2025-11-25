@@ -19,6 +19,12 @@ acct_mgmt(pam_handle_t *pamh, struct config_t *cfg)
   _cleanup_free_ char *error = NULL;
   long daysleft = -1;
   int r;
+  // using a conservative PAM_SYSTEM_ERR or similar as default would be
+  // appreciated here, should an early return of this value ever slip in in
+  // the future.
+  // or, alternatively/additionally, declare this variable only below in front
+  // of the `switch()` statement. We can already enjoy the merits of C99 and
+  // don't need to declare everything strictly at the top anymore.
   int retval = PAM_SUCCESS;
 
   r = pam_get_item(pamh, PAM_USER, &void_str);
@@ -38,6 +44,22 @@ acct_mgmt(pam_handle_t *pamh, struct config_t *cfg)
       pam_syslog(pamh, LOG_ERR, "pwaccess expired failed: %s",
 		 error ? error : strerror(-r));
 
+      // The body of this `if` block could be candidate for placing it into a
+      // dedicated function, since it is performing a very specific fallback
+      // purpose.
+      //
+      // Beyond that, is this fallback really necessary? Could this be solved
+      // on PAM configuration level instead e.g. by configured the old
+      // `pam_unix` module as a fallback instead?
+      //
+      // The support for reading /etc/shadow even if the caller has
+      // insufficient privileges will be lost in this case anyway.
+      // Thus the fallback feels a bit strange to me at first look: apart from
+      // partly duplicating logic present already in the Varlink service end,
+      // this fallback cannot really fulfill the promise that the pwaccessd
+      // service makes, so there can be two very different outcomes in this
+      // PAM service call, depending on whether the daemon is available or
+      // not.
       if (PWACCESS_IS_NOT_RUNNING(r))
 	{
 	  struct spwd spbuf;
@@ -57,6 +79,8 @@ acct_mgmt(pam_handle_t *pamh, struct config_t *cfg)
 	    {
 	      if (r == 0)
 		{
+		  // maybe shorten this a bit:
+		  //const char *cp = valid_name(user) ? user : "";
 		  const char *cp;
 
 		  if (!valid_name(user))
@@ -76,6 +100,15 @@ acct_mgmt(pam_handle_t *pamh, struct config_t *cfg)
       else
 	return PAM_SYSTEM_ERR;
     }
+  // the whole stack variable declaration can be moved here, or even do it
+  // like
+  //
+  // switch ((pwa_expire_flag_t)r) {
+  //    ...
+  // }
+  //
+  // this way you will get the smallest possible scope for the variable of
+  // this type.
   expire_state = r;
 
   switch (expire_state)
@@ -105,6 +138,8 @@ acct_mgmt(pam_handle_t *pamh, struct config_t *cfg)
       retval = PAM_NEW_AUTHTOK_REQD;
       break;
     case PWA_EXPIRED_PW:
+      // inactive password? is this similar to a locked account? sounds a bit
+      // strange.
       pam_syslog(pamh, LOG_NOTICE,
 		 "password for user %s is inactive", user);
       pam_error(pamh, "Your password is inactive; please contact your system administrator.");
@@ -113,6 +148,7 @@ acct_mgmt(pam_handle_t *pamh, struct config_t *cfg)
     default:
       pam_syslog(pamh, LOG_ERR, "Unexpected expire value: %i", r);
       retval = PAM_SYSTEM_ERR;
+      // break missing, better to have this to prevent future issues
     }
 
   if (daysleft >= 0)
