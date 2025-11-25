@@ -119,6 +119,9 @@ static sd_json_variant *send_v = NULL;
 static pthread_mutex_t mut = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
 static char *answer = NULL;
+static bool got_answer = false;
+static bool broadcast_called = false;
+
 
 static int
 varlink_conv(int num_msg, const struct pam_message **msgm,
@@ -147,10 +150,11 @@ varlink_conv(int num_msg, const struct pam_message **msgm,
 	  r = sd_json_variant_merge_objectbo(&send_v,
 					     SD_JSON_BUILD_PAIR_INTEGER("msg_style", msgm[count]->msg_style),
 					     SD_JSON_BUILD_PAIR("message", SD_JSON_BUILD_STRING(msgm[count]->msg)));
-	  pthread_mutex_unlock(&mut);
 	  if (r < 0)
 	    log_msg(LOG_ERR, "Failed to build send_v list: %s\n", strerror(-r));
+	  broadcast_called = true;
 	  pthread_cond_broadcast(&cond);
+	  pthread_mutex_unlock(&mut);
 
 	  *response = calloc(num_msg, sizeof(struct pam_response));
 	  if (*response == NULL)
@@ -161,10 +165,12 @@ varlink_conv(int num_msg, const struct pam_message **msgm,
 
 	  /* waiting for answer */
 	  pthread_mutex_lock(&mut);
-	  log_msg(LOG_DEBUG, "varlink_conv: calling pthread_cond_wait");
-	  pthread_cond_wait(&cond, &mut);
+	  log_msg(LOG_DEBUG, "varlink_conv: wait for answer from client");
+	  while (!got_answer)
+	    pthread_cond_wait(&cond, &mut);
 	  response[0]->resp_retcode = 0;
-	  response[0]->resp = answer;
+	  response[0]->resp = TAKE_PTR(answer);
+	  got_answer = false;
 	  pthread_mutex_unlock(&mut);
 	  log_msg(LOG_DEBUG, "varlink_conv: after mutex");
           break;
@@ -192,7 +198,10 @@ varlink_conv(int num_msg, const struct pam_message **msgm,
 static void *
 broadcast_and_return(intptr_t r)
 {
+  pthread_mutex_lock(&mut);
+  broadcast_called = true;
   pthread_cond_broadcast(&cond);
+  pthread_mutex_unlock(&mut);
   return (void *)r;
 }
 
@@ -543,10 +552,11 @@ vl_method_chfn(sd_varlink *link, sd_json_variant *parameters,
   pam_thread_is_valid = true;
 
   pthread_mutex_lock(&mut);
-  log_msg(LOG_DEBUG, "chfn: calling pthread_cond_wait");
-  pthread_cond_wait(&cond, &mut);
+  log_msg(LOG_DEBUG, "chfn: waiting for PAM thread");
+  while(!broadcast_called)
+    pthread_cond_wait(&cond, &mut);
+  broadcast_called = false;
   pthread_mutex_unlock(&mut);
-  log_msg(LOG_DEBUG, "chfn: pthread_cond_wait succeeded");
 
   /* we need input from the user, quit method and send prompt back */
   if (send_v != NULL)
@@ -798,10 +808,11 @@ vl_method_chsh(sd_varlink *link, sd_json_variant *parameters,
   pam_thread_is_valid = true;
 
   pthread_mutex_lock(&mut);
-  log_msg(LOG_DEBUG, "chsh: calling pthread_cond_wait");
-  pthread_cond_wait(&cond, &mut);
+  log_msg(LOG_DEBUG, "chsh: waiting for PAM thread");
+  while(!broadcast_called)
+    pthread_cond_wait(&cond, &mut);
+  broadcast_called = false;
   pthread_mutex_unlock(&mut);
-  log_msg(LOG_DEBUG, "chsh: pthread_cond_wait succeeded");
 
   /* we need input from the user, quit method and send prompt back */
   if (send_v != NULL)
@@ -979,12 +990,14 @@ vl_method_chauthtok(sd_varlink *link, sd_json_variant *parameters,
   r = pthread_create(&pam_thread, NULL, &run_pam_chauthtok, &p);
   if (r != 0)
     return return_errno_error(link, "pthread_create", errno);
+  pam_thread_is_valid = true;
 
   pthread_mutex_lock(&mut);
-  log_msg(LOG_DEBUG, "chauthtok: calling pthread_cond_wait");
-  pthread_cond_wait(&cond, &mut);
+  log_msg(LOG_DEBUG, "chauthtok: waiting for PAM thread");
+  while(!broadcast_called)
+    pthread_cond_wait(&cond, &mut);
+  broadcast_called = false;
   pthread_mutex_unlock(&mut);
-  log_msg(LOG_DEBUG, "chauthtok: pthread_cond_wait succeeded");
 
   /* we need input from the user, quit method and send prompt back */
   if (send_v != NULL)
@@ -1058,15 +1071,18 @@ vl_method_conv(sd_varlink *link, sd_json_variant *parameters,
     answer = strdup(p.response);
   else
     answer = NULL;
+  got_answer = true;
   pthread_mutex_unlock(&mut);
+  /* inform PAM thread about answer */
   pthread_cond_broadcast(&cond);
 
   /* wait for next PAM_PROMPT_ECHO_* message or exit */
   pthread_mutex_lock(&mut);
-  log_msg(LOG_DEBUG, "conv: calling pthread_cond_wait");
-  pthread_cond_wait(&cond, &mut);
+  log_msg(LOG_DEBUG, "method_conv: waiting for PAM thread");
+  while(!broadcast_called)
+    pthread_cond_wait(&cond, &mut);
+  broadcast_called = false;
   pthread_mutex_unlock(&mut);
-  log_msg(LOG_DEBUG, "conv: pthread_cond_wait succeeded");
 
   /* we need input from the user, quit method and send prompt back */
   if (send_v != NULL)
