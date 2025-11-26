@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include <systemd/sd-varlink.h>
+
 extern void log_msg (int priority, const char *fmt, ...) __attribute__ ((__format__ (__printf__, 2, 3)));
 extern void set_max_log_level (int level);
 

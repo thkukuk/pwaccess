@@ -355,12 +355,12 @@ unix_chauthtok(pam_handle_t *pamh, int flags, struct config_t *cfg)
 	    }
 	  else if (strlen(strempty(pass_new)) < (size_t)cfg->minlen)
 	    {
+	      pam_syslog(pamh, LOG_NOTICE, "supplied password for %s too short", user);
 	      if (!i_am_root)
 		{
 		  /* remove new password */
 		  pam_set_item(pamh, PAM_AUTHTOK, NULL);
 		  pass_new = NULL;
-		  pam_syslog(pamh, LOG_NOTICE, "supplied password too short");
                   pam_error(pamh, "You must choose a longer password.");
 		  r = PAM_AUTHTOK_ERR;
                 }

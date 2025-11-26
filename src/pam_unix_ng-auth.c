@@ -31,8 +31,7 @@ authenticate(pam_handle_t *pamh, struct config_t *cfg)
   /* can this happen? */
   if (isempty(user))
     return PAM_USER_UNKNOWN;
-
-  if (!valid_name(user))
+  else if (!valid_name(user))
     {
       pam_syslog(pamh, LOG_ERR, "username contains invalid characters");
       return PAM_USER_UNKNOWN;

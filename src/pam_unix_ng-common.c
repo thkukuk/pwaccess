@@ -28,10 +28,9 @@ parse_args(pam_handle_t *pamh, int flags, int argc, const char **argv,
   /* only read login.defs if we change the password */
   if (init_crypt)
     {
-      char *val;
+      _cleanup_free_ char *val;
 
       cfg->crypt_count = 0;
-      cfg->crypt_prefix = "$y$";
 
       val = get_logindefs_string("ENCRYPT_METHOD", NULL);
       if (isempty(val) || streq(val, "YESCRYPT"))
@@ -52,8 +51,11 @@ parse_args(pam_handle_t *pamh, int flags, int argc, const char **argv,
 	cfg->crypt_prefix = "$1$";
       else if (streq(val, "BLOWFISH") || streq(val, "BCRYPT"))
 	cfg->crypt_prefix = "$2b$";
-      /* value of val got allocated by libeconf */
-      free(val);
+      else
+	{
+	  pam_syslog(pamh, LOG_NOTICE, "ENCRYPT_METHOD from login.defs has unknown value: '%s'", val);
+	  cfg->crypt_prefix = "$y$"; /* the default if no option is set */
+	}
     }
 
   /* does the application require quiet? */
@@ -79,7 +81,7 @@ parse_args(pam_handle_t *pamh, int flags, int argc, const char **argv,
 
 	  errno = 0;
 	  l = strtol(cp, &ep, 10);
-	  if (errno == ERANGE || l < 0 || l > UINT32_MAX ||
+	  if (errno == ERANGE || l < 0 || l > INT32_MAX ||
 	      cp == ep || *ep != '\0')
 	    pam_syslog(pamh, LOG_ERR, "Cannot parse 'minlen=%s'", cp);
 	  else
@@ -213,8 +215,8 @@ authenticate_user(pam_handle_t *pamh, uint32_t ctrl,
             }
           if (is_shadow(pw)) /* Get shadow entry */
             {
-              /* reuse buffer,
-                 !!! pw is no longer valid !!! */
+              /* reuse buffer, !!! pw is no longer valid !!! */
+	      pw = NULL;
 
               r = getspnam_r(user, &spbuf, buf, bufsize, &sp);
               if (sp == NULL)

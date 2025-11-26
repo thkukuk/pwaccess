@@ -13,13 +13,11 @@
 static int
 acct_mgmt(pam_handle_t *pamh, struct config_t *cfg)
 {
-  pwa_expire_flag_t expire_state;
   const void *void_str;
   const char *user;
   _cleanup_free_ char *error = NULL;
   long daysleft = -1;
   int r;
-  int retval = PAM_SUCCESS;
 
   r = pam_get_item(pamh, PAM_USER, &void_str);
   if (r != PAM_SUCCESS || isempty(void_str))
@@ -57,13 +55,7 @@ acct_mgmt(pam_handle_t *pamh, struct config_t *cfg)
 	    {
 	      if (r == 0)
 		{
-		  const char *cp;
-
-		  if (!valid_name(user))
-		    cp = "";
-		  else
-		    cp = user;
-		  pam_syslog(pamh, LOG_INFO, "User '%s' not found", strna(cp));
+		  pam_syslog(pamh, LOG_INFO, "User '%s' not found", strna(valid_name(user) ? user : ""));
 		  return PAM_USER_UNKNOWN;
 		}
 
@@ -76,9 +68,9 @@ acct_mgmt(pam_handle_t *pamh, struct config_t *cfg)
       else
 	return PAM_SYSTEM_ERR;
     }
-  expire_state = r;
 
-  switch (expire_state)
+  int retval = PAM_SUCCESS;
+  switch ((pwa_expire_flag_t)r)
     {
     case PWA_EXPIRED_NO:
       break;
@@ -113,6 +105,7 @@ acct_mgmt(pam_handle_t *pamh, struct config_t *cfg)
     default:
       pam_syslog(pamh, LOG_ERR, "Unexpected expire value: %i", r);
       retval = PAM_SYSTEM_ERR;
+      break;
     }
 
   if (daysleft >= 0)
