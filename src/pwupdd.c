@@ -361,6 +361,17 @@ static pthread_t pam_thread;
 static bool pam_thread_is_valid = false;
 
 static int
+thread_is_running(void)
+{
+  if (pam_thread_is_valid)
+    {
+      int r = pthread_kill(pam_thread, 0);
+      return -r;
+    }
+  return -ENOENT;
+}
+
+static int
 vl_method_chfn(sd_varlink *link, sd_json_variant *parameters,
 	       sd_varlink_method_flags_t _unused_(flags),
 	       void _unused_(*userdata))
@@ -397,6 +408,15 @@ vl_method_chfn(sd_varlink *link, sd_json_variant *parameters,
   int r;
 
   log_msg(LOG_INFO, "Varlink method \"chfn\" called...");
+
+  /* If there is already a thread running, quit with error.
+     The conv method needs to be called to continue. */
+  r = thread_is_running();
+  if (r == 0)
+    {
+      log_msg(LOG_ERR, "chfn method called while already running!");
+      return -EPERM;
+    }
 
   r = sd_varlink_get_peer_uid(link, &peer_uid);
   if (r < 0)
@@ -733,6 +753,15 @@ vl_method_chsh(sd_varlink *link, sd_json_variant *parameters,
 
   log_msg(LOG_INFO, "Varlink method \"chsh\" called...");
 
+  /* If there is already a thread running, quit with error.
+     The conv method needs to be called to continue. */
+  r = thread_is_running();
+  if (r == 0)
+    {
+      log_msg(LOG_ERR, "chsh method called while already running!");
+      return -EPERM;
+    }
+
   r = sd_varlink_get_peer_uid(link, &peer_uid);
   if (r < 0)
     return return_errno_error(link, "Get peer UID", r);
@@ -932,6 +961,15 @@ vl_method_chauthtok(sd_varlink *link, sd_json_variant *parameters,
 
   log_msg(LOG_INFO, "Varlink method \"chauthtok\" called...");
 
+  /* If there is already a thread running, quit with error.
+     The conv method needs to be called to continue. */
+  r = thread_is_running();
+  if (r == 0)
+    {
+      log_msg(LOG_ERR, "chauthtok method called while already running!");
+      return -EPERM;
+    }
+
   r = sd_varlink_get_peer_uid(link, &peer_uid);
   if (r < 0)
     return return_errno_error(link, "Get peer UID", r);
@@ -1052,10 +1090,7 @@ vl_method_conv(sd_varlink *link, sd_json_variant *parameters,
   log_msg(LOG_INFO, "Varlink method \"conv\" called...");
 
   /* make sure there is a pam_start() thread running! */
-  if (pam_thread_is_valid)
-    r = pthread_kill(pam_thread, 0);
-  else
-    r = ENOENT;
+  r = thread_is_running();
   if (r != 0)
     return return_errno_error(link, "Finding PAM thread", r);
 
@@ -1065,7 +1100,7 @@ vl_method_conv(sd_varlink *link, sd_json_variant *parameters,
 
   /* set pam_response */
   pthread_mutex_lock(&mut);
-  log_msg(LOG_DEBUG, "conv: set response and send cond_broadcast");
+  log_msg(LOG_DEBUG, "method_conv: set response and send cond_broadcast");
   send_v = sd_json_variant_unref(send_v);
   if (p.response)
     answer = strdup(p.response);
