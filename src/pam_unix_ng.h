@@ -15,6 +15,11 @@
 
 struct config_t
 {
+  /*
+   * why is this called `ctrl`? The flags above have an ARG_ prefix.
+   * maybe calling this flags or opts would be more suitable.
+   * this could also be a candidate for an enum type.
+   */
   uint32_t ctrl;
   uint32_t fail_delay;  /* sleep of milliseconds in case of auth failure */
   int minlen;           /* minimal length of new password */

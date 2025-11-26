@@ -25,6 +25,16 @@ parse_args(pam_handle_t *pamh, int flags, int argc, const char **argv,
   cfg->fail_delay = 2000;
   cfg->minlen = 8;
 
+  /*
+   * strictly spoken this reading of the logindefs has nothing to do with
+   * parsing PAM module arguments. it is rather a kind of default
+   * initialization from system file settings.
+   *
+   * I also see only one user of `init_crypt == true` in `pam_sm_chauthtok()`.
+   *
+   * I believe it would make more sense to move this into a dedicated function
+   * which is only called in `pam_sm_chauthtok()`.
+   */
   /* only read login.defs if we change the password */
   if (init_crypt)
     {
@@ -35,11 +45,17 @@ parse_args(pam_handle_t *pamh, int flags, int argc, const char **argv,
 
       val = get_logindefs_string("ENCRYPT_METHOD", NULL);
       if (isempty(val) || streq(val, "YESCRYPT"))
+	// this string is already assigned above.
+	// maybe this default value can be placed in an `else` branch for all
+	// three cases dealt with here.
 	cfg->crypt_prefix = "$y$";
       else if (streq(val, "GHOST_YESCRYPT"))
 	cfg->crypt_prefix = "$gy$";
       else if (streq(val, "SHA512"))
 	{
+	  // the value returned here is from a trusted system file; still
+	  // there is a sign mismatch, in theory a negative value could be
+	  // returned here, leading to a very large value in `crypt_count`
 	  cfg->crypt_count = get_logindefs_num("SHA_CRYPT_MAX_ROUNDS", 5000);
 	  cfg->crypt_prefix = "$6$";
 	}
@@ -49,9 +65,14 @@ parse_args(pam_handle_t *pamh, int flags, int argc, const char **argv,
 	  cfg->crypt_prefix = "$5$";
 	}
       else if (streq(val, "MD5"))
+	// should this even still be supported? I guess this would at least be
+	// subject to requirements like FIPS, which forbids such hash
+	// algorithtms.
 	cfg->crypt_prefix = "$1$";
       else if (streq(val, "BLOWFISH") || streq(val, "BCRYPT"))
 	cfg->crypt_prefix = "$2b$";
+      // to prevent future memory leaks this could be solved via a _cleanup_
+      // attribute instead
       /* value of val got allocated by libeconf */
       free(val);
     }
@@ -79,6 +100,7 @@ parse_args(pam_handle_t *pamh, int flags, int argc, const char **argv,
 
 	  errno = 0;
 	  l = strtol(cp, &ep, 10);
+	  // `cfg->minlen` is an int, so this needs `l > INT32_MAX`, right?
 	  if (errno == ERANGE || l < 0 || l > UINT32_MAX ||
 	      cp == ep || *ep != '\0')
 	    pam_syslog(pamh, LOG_ERR, "Cannot parse 'minlen=%s'", cp);
@@ -213,6 +235,7 @@ authenticate_user(pam_handle_t *pamh, uint32_t ctrl,
             }
           if (is_shadow(pw)) /* Get shadow entry */
             {
+	      // then I recommend also assigning `pw = NULL` here
               /* reuse buffer,
                  !!! pw is no longer valid !!! */
 
@@ -281,6 +304,9 @@ log_authentication_failure(pam_handle_t *pamh, const char *user)
   pam_get_item(pamh, PAM_RHOST, &rhost);
   pam_get_item(pamh, PAM_TTY, &tty);
   login_name = pam_modutil_getlogin(pamh);
+
+  // could any of these strings contain crafted data that would need to be
+  // checked for here?
 
   pam_syslog(pamh, LOG_NOTICE,
 	     "authentication failure; "

@@ -187,6 +187,10 @@ unix_chauthtok(pam_handle_t *pamh, int flags, struct config_t *cfg)
     }
 
   /* We must be root to update passwd and shadow. */
+  /*
+   * wasn't this was pwuppd was trying to fix, support for changing one's own
+   * password without elevated privileges?
+   */
   if (geteuid() != 0)
     {
       const char *no_root = "Calling process must be root!";
@@ -207,7 +211,7 @@ unix_chauthtok(pam_handle_t *pamh, int flags, struct config_t *cfg)
 
   if (isempty(user))
     return PAM_USER_UNKNOWN;
-
+  // else if
   if (!valid_name(user))
     {
       pam_syslog(pamh, LOG_ERR, "username contains invalid characters");
@@ -232,6 +236,9 @@ unix_chauthtok(pam_handle_t *pamh, int flags, struct config_t *cfg)
       return PAM_AUTHTOK_RECOVERY_ERR;
     }
 
+  // this function is very long, it could make sense to pull out the
+  // PRELIM_CHECK and the UPDATE_AUTHTOK into separate functions to make it
+  // more digestible.
   if (flags & PAM_PRELIM_CHECK)
     {
       const char *pass_old = NULL;
@@ -317,6 +324,9 @@ unix_chauthtok(pam_handle_t *pamh, int flags, struct config_t *cfg)
       pass_old = item;
 
       r = PAM_AUTHTOK_ERR;
+      // similarly here, the whole password verification and policy business
+      // could be pulled out, allowing this function to concentrate on the
+      // actual password updating topic.
       while ((r != PAM_SUCCESS) && (retry++ < MAX_PASSWD_TRIES))
 	{
 	  const char *no_new_pass_msg = "No new password has been supplied";
@@ -355,6 +365,10 @@ unix_chauthtok(pam_handle_t *pamh, int flags, struct config_t *cfg)
 	    }
 	  else if (strlen(strempty(pass_new)) < (size_t)cfg->minlen)
 	    {
+	      /*
+	       * so root is exempt from the minimum password length?
+	       * isn't he let off the hook too easily? a warning at least?
+	       */
 	      if (!i_am_root)
 		{
 		  /* remove new password */
@@ -410,6 +424,11 @@ unix_chauthtok(pam_handle_t *pamh, int flags, struct config_t *cfg)
 	  sp->sp_pwdp = strdup(new_hash);
 	  if (sp->sp_pwdp == NULL)
 	    return PAM_BUF_ERR;
+	  /*
+	   * There are two `DAY` defines in chage.c and passwd.c and here they
+	   * are literal integers. I guess you can place this DAY define once
+	   * in a shared header to harmonize it.
+	   */
 	  sp->sp_lstchg = time(NULL) / (60 * 60 * 24);
 	  if (sp->sp_lstchg == 0)
 	    sp->sp_lstchg = -1; /* Don't request passwort change

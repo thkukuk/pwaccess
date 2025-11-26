@@ -369,6 +369,9 @@ pwaccess_verify_password(const char *user, const char *password, bool nullok, bo
      0: all fine
    > 0: PWA_EXPIRED_*
 */
+// it would be helpful to also document that the `error` string needs to be
+// free'd by the caller, or is this a general theme of the codebase that is
+// documented somewhere else?
 int
 pwaccess_check_expired(const char *user, long *daysleft, bool *pwchangeable, char **error)
 {
@@ -396,6 +399,26 @@ pwaccess_check_expired(const char *user, long *daysleft, bool *pwchangeable, cha
   if (!user)
     return -EINVAL;
 
+  /*
+   * this comment is regarding all Varlink connections performed in the
+   * context of this PAM module.
+   * the Varlink service will use the UID returned by `sd_varlink_get_peer_uid(link, * &peer_uid);`
+   * for credentials checking.
+   * this UID will be the effective UID of the process seen at connect() time.
+   *
+   * If this PAM module runs e.g. in `sudo` context then the Varlink service
+   * will believe we are root and allow all operations.
+   *
+   * As long as it is made sure that the PAM `user` is always matching the
+   * client's credentials then this hopefully shouldn't ever be a problem.
+   *
+   * On the other hand it could make sense to temporarily synchronize real and
+   * effective UID for these calls.
+   *
+   * There is always some ambiguity here in PAM, since we don't really know
+   * about the intentions of the program calling us, the elevated privileges
+   * might be just what they want.
+   */
   r = connect_to_pwaccessd(&link, _VARLINK_PWACCESS_SOCKET, error);
   if (r < 0)
     return r;
@@ -411,6 +434,7 @@ pwaccess_check_expired(const char *user, long *daysleft, bool *pwchangeable, cha
   r = sd_varlink_call(link, "org.openSUSE.pwaccess.ExpiredCheck", params, &result, &error_id);
   if (r < 0)
     {
+      // Is it CheckExpired or ExpiredCheck?
       fprintf(stderr, "Failed to call CheckExpired method: %s\n", strerror(-r));
       return r;
     }
