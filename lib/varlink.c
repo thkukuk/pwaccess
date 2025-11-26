@@ -411,7 +411,7 @@ pwaccess_check_expired(const char *user, long *daysleft, bool *pwchangeable, cha
   r = sd_varlink_call(link, "org.openSUSE.pwaccess.ExpiredCheck", params, &result, &error_id);
   if (r < 0)
     {
-      fprintf(stderr, "Failed to call CheckExpired method: %s\n", strerror(-r));
+      fprintf(stderr, "Failed to call ExpiredCheck method: %s\n", strerror(-r));
       return r;
     }
 
