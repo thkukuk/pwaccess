@@ -1,8 +1,8 @@
-# Building and installing pwaccess
+# Building and installing account-utils
 
 ## Building with Meson
 
-pwaccess requires a relatively recent version of Meson.
+account-utils requires Meson 0.61.0 or newer.
 
 Building with Meson is quite simple:
 
