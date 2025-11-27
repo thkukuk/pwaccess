@@ -504,7 +504,15 @@ main(int argc, char **argv)
 			       &pw, &sp, &complete, &error);
   if (r < 0)
     {
-      fprintf(stderr, "get_user_record failed: %s\n", error?error:strerror(-r));
+      if (error && streq(error, "org.openSUSE.pwaccess.NoEntryFound"))
+	{
+	  if (user)
+	    fprintf(stderr, "The user '%s' does not exist.\n", user);
+	  else
+	    fprintf(stderr, "No user for UID '%u' found.\n", getuid());
+	}
+      else
+	fprintf(stderr, "Cannot get user account data: %s\n", error?error:strerror(-r));
       return -r;
     }
   if (pw == NULL)
@@ -528,7 +536,46 @@ main(int argc, char **argv)
     return modify_account(pw, sp, args, inactive, mindays, maxdays,
 			  warndays, quiet);
   else
-    return chauthtok(user, pam_flags);
+    {
+      r = chauthtok(user, pam_flags);
+      if (!PWACCESS_IS_NOT_RUNNING(-r))
+	return r;
+
+      /* Fallback, run PAM stack ourself if we are root.
+	 That's needed to allow root to fix his password
+	 if system got booted with e.g. init=/bin/bash */
+      if (geteuid() != 0)
+	return r; /* return error accessing pwupdd */
+
+      pam_handle_t *pamh = NULL;
+      struct pam_conv conv = {
+	misc_conv,
+	NULL
+      };
+
+      r = pam_start("passwd", user, &conv, &pamh);
+      if (r != PAM_SUCCESS)
+	{
+	  fprintf(stderr, "pam_start(\"passwd\", %s) failed: %s", user,
+		  pam_strerror(NULL, r));
+	  return r;
+	}
+
+      r = pam_chauthtok(pamh, pam_flags);
+      if (r != PAM_SUCCESS)
+	{
+	  pam_end(pamh, r);
+	  fprintf(stderr, "pam_chauthtok() failed: %s",
+		  pam_strerror(NULL, r));
+	  return r;
+	}
+      r = pam_end(pamh, 0);
+      if (r != PAM_SUCCESS)
+	{
+	  fprintf(stderr, "pam_end() failed: %s", pam_strerror(NULL, r));
+	  return r;
+	}
+    }
 
   return 0;
 }
