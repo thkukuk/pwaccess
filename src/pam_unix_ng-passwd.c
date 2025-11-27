@@ -14,6 +14,14 @@
 
 #define MAX_PASSWD_TRIES 3
 
+static inline void
+secure_freep(char **p)
+{
+  if (*p)
+    explicit_bzero(*p, strlen(*p));
+  *p = mfree(*p);
+}
+
 static int
 get_local_user_record(pam_handle_t *pamh, const char *user,
 		      struct passwd **ret_pw, struct spwd **ret_sp)
@@ -381,7 +389,7 @@ unix_chauthtok(pam_handle_t *pamh, int flags, struct config_t *cfg)
 		   cfg->crypt_prefix, cfg->crypt_count);
 
       _cleanup_free_ char *error = NULL;
-      char *new_hash = NULL;
+      _cleanup_(secure_freep) char *new_hash = NULL;
       r = create_hash(pass_new, cfg->crypt_prefix, cfg->crypt_count,
 		      &new_hash, &error);
       if (r < 0 || new_hash == NULL)
@@ -434,7 +442,6 @@ unix_chauthtok(pam_handle_t *pamh, int flags, struct config_t *cfg)
 
 	  r = update_passwd(pw, NULL);
 	}
-      explicit_bzero(new_hash, strlen(new_hash));
       pass_old = pass_new = NULL;
     }
 
