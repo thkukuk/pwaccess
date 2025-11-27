@@ -1,6 +1,5 @@
 - pam_unix_ng: handle PAM_SILENT correct
 - pwupd/pwaccess varlink definition: add OUTPUT fields
-- passwd: fallback if pwupdd is not running (rescue systems, init=/bin/bash)
 - passwd: --stdin option
 
 Bugs:
