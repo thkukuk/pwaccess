@@ -17,6 +17,7 @@
 #include "varlink-client-common.h"
 #include "get_value.h"
 #include "get_logindefs.h"
+#include "drop_privs.h"
 
 #define DAY (24L*3600L)
 #define SCALE DAY
@@ -382,6 +383,10 @@ main(int argc, char **argv)
       print_error();
       return EINVAL;
     }
+
+  r = check_and_drop_privs();
+  if (r < 0)
+    return -r;
 
   /* get user account data */
   r = pwaccess_get_user_record(user?-1:(int64_t)getuid(), user?user:NULL,

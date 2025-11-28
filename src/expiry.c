@@ -11,6 +11,7 @@
 #include "basics.h"
 #include "pwaccess.h"
 #include "chauthtok.h"
+#include "drop_privs.h"
 
 static void
 print_usage(FILE *stream)
@@ -100,6 +101,10 @@ main(int argc, char **argv)
       print_error();
       return EINVAL;
     }
+
+  r = check_and_drop_privs();
+  if (r < 0)
+    return -r;
 
   /* common for -c and -f */
   if (argc == 1)

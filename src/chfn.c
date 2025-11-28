@@ -17,6 +17,7 @@
 #include "varlink-client-common.h"
 #include "get_value.h"
 #include "chfn_checks.h"
+#include "drop_privs.h"
 
 #define USEC_INFINITY ((uint64_t) UINT64_MAX)
 
@@ -182,6 +183,10 @@ main(int argc, char **argv)
       print_error();
       return 1;
     }
+
+  r = check_and_drop_privs();
+  if (r < 0)
+    return -r;
 
   if (argc == 1)
     user = argv[0];

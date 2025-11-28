@@ -16,6 +16,7 @@
 #include "pwaccess.h"
 #include "varlink-client-common.h"
 #include "get_value.h"
+#include "drop_privs.h"
 
 #define USEC_INFINITY ((uint64_t) UINT64_MAX)
 
@@ -84,6 +85,7 @@ main(int argc, char **argv)
 {
   char *new_shell = NULL;
   int l_flag = 0;
+  int r;
 
   setlocale(LC_ALL, "");
 
@@ -145,6 +147,11 @@ main(int argc, char **argv)
       print_error();
       return 1;
     }
+
+  r = check_and_drop_privs();
+  if (r < 0)
+    return -r;
+
   if (l_flag)
     return get_shell_list();
   else
@@ -155,7 +162,6 @@ main(int argc, char **argv)
       _cleanup_free_ char *error = NULL;
       const char *user = NULL;
       const char *old_shell = NULL;
-      int r;
 
       if (argc == 1)
 	r = pwaccess_get_user_record(-1, argv[0], &pw, NULL, NULL, &error);

@@ -16,6 +16,7 @@
 #include "verify.h"
 #include "chauthtok.h"
 #include "get_logindefs.h"
+#include "drop_privs.h"
 
 #define ARG_DELETE_PASSWORD  1
 #define ARG_EXPIRE           2
@@ -498,6 +499,10 @@ main(int argc, char **argv)
       print_error();
       return EINVAL;
     }
+
+  r = check_and_drop_privs();
+  if (r < 0)
+    return -r;
 
   /* get user account data */
   r = pwaccess_get_user_record(user?-1:(int64_t)getuid(), user?user:NULL,

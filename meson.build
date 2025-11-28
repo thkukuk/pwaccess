@@ -114,6 +114,7 @@ pkg.generate(
 libcommon_c = files('libcommon/chauthtok.c',
                     'libcommon/chfn_checks.c',
                     'libcommon/create_hash.c',
+                    'libcommon/drop_privs.c',
                     'libcommon/files.c',
                     'libcommon/get_logindefs.c',
                     'libcommon/mkdir_p.c',
