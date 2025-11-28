@@ -418,6 +418,15 @@ vl_method_chfn(sd_varlink *link, sd_json_variant *parameters,
       return -EPERM;
     }
 
+  errno = 0; /* to find out if getpwnam succeed and there is no entry or if there was an error */
+  pw = getpwnam(p.name);
+  if (pw == NULL)
+    {
+      r = error_user_not_found(link, -1, p.name);
+      parameters_free(&p);
+      return r;
+    }
+
   r = sd_varlink_get_peer_uid(link, &peer_uid);
   if (r < 0)
     return return_errno_error(link, "Get peer UID", r);
@@ -437,6 +446,24 @@ vl_method_chfn(sd_varlink *link, sd_json_variant *parameters,
 				SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
 				SD_JSON_BUILD_PAIR_STRING("ErrorMsg", "No user name specified"));
     }
+
+  /* Don't change GECOS if query does not come from root
+     and result is not the one of the calling user */
+  if (peer_uid != 0 && pw->pw_uid != peer_uid)
+    {
+      if (asprintf(&error, "Peer UID (%i) not 0 and peer UID not equal to UID",
+		   peer_uid) < 0)
+	error = NULL;
+      log_msg(LOG_ERR, "chfn: %s", stroom(error));
+      parameters_free(&p);
+      return sd_varlink_errorbo(link, "org.openSUSE.pwupd.InternalError",
+				SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
+				SD_JSON_BUILD_PAIR_STRING("ErrorMsg", stroom(error)));
+    }
+
+  /* Now that we know the caller is allowed to make changes,
+     check if the caller is allowed to change the single fields
+     and the new values are valid */
 
   if (p.full_name)
     {
@@ -524,34 +551,11 @@ vl_method_chfn(sd_varlink *link, sd_json_variant *parameters,
 	}
     }
 
-  errno = 0; /* to find out if getpwnam succeed and there is no entry or if there was an error */
-  pw = getpwnam(p.name);
-  if (pw == NULL)
-    {
-      r = error_user_not_found(link, -1, p.name);
-      parameters_free(&p);
-      return r;
-    }
-
   p.old_gecos = strdup(strempty(pw->pw_gecos));
   if (p.old_gecos == NULL)
     {
       parameters_free(&p);
       return return_errno_error(link, "strdup", -ENOMEM);
-    }
-
-  /* Don't change GECOS if query does not come from root
-     and result is not the one of the calling user */
-  if (peer_uid != 0 && pw->pw_uid != peer_uid)
-    {
-      if (asprintf(&error, "Peer UID (%i) not 0 and peer UID not equal to UID",
-		   peer_uid) < 0)
-	error = NULL;
-      log_msg(LOG_ERR, "chfn: %s", stroom(error));
-      parameters_free(&p);
-      return sd_varlink_errorbo(link, "org.openSUSE.pwupd.InternalError",
-				SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
-				SD_JSON_BUILD_PAIR_STRING("ErrorMsg", stroom(error)));
     }
 
   /* Run under the UID of the caller, else pam_unix will not ask
@@ -653,6 +657,8 @@ is_known_shell(const char *shell)
 static bool
 valid_shell(const char *shell, uid_t uid, char **msg)
 {
+  assert(msg);
+
   /* Keep /etc/passwd clean. This is always required, even for root. */
   for (size_t i = 0; i < strlen(shell); i++)
     {
@@ -660,18 +666,13 @@ valid_shell(const char *shell, uid_t uid, char **msg)
 
       if (iscntrl (c))
         {
-          if (msg)
-	    *msg = strdup("Error: control characters are not allowed.");
+	  *msg = strdup("Error: control characters are not allowed.");
           return false;
         }
-
       if (c == ',' || c == ':' || c == '=' || c == '"')
         {
-	  if (msg)
-	    {
-	      if (asprintf(msg, "Error: '%c' is not allowed.", c) < 0)
-		*msg = NULL;
-	    }
+	  if (asprintf(msg, "Error: '%c' is not allowed.", c) < 0)
+	    *msg = NULL;
           return false;
         }
     }
@@ -680,41 +681,29 @@ valid_shell(const char *shell, uid_t uid, char **msg)
      Error for normal users, warning only for root */
   if (*shell != '/')
     {
-      if (msg)
-	{
-	  if (asprintf(msg, "%s: shell must be a full path name.", uid?"Error":"Warning") < 0)
-	    *msg = NULL;
-	}
+      if (asprintf(msg, "%s: shell must be a full path name.", uid?"Error":"Warning") < 0)
+	*msg = NULL;
       if (uid)
         return false;
     }
   else if (access(shell, F_OK) < 0)
     {
-      if (msg)
-	{
-	  if (asprintf(msg, "%s: '%s' does not exist.", uid?"Error":"Warning", shell) < 0)
-	    *msg = NULL;
-	}
+      if (asprintf(msg, "%s: '%s' does not exist.", uid?"Error":"Warning", shell) < 0)
+	*msg = NULL;
       if (uid)
         return false;
     }
   else if (access(shell, X_OK) < 0)
     {
-      if (msg)
-	{
-	  if (asprintf(msg, "%s: '%s' is not executable.", uid?"Error":"Warning", shell) < 0)
-	    *msg = NULL;
-	}
+      if (asprintf(msg, "%s: '%s' is not executable.", uid?"Error":"Warning", shell) < 0)
+	*msg = NULL;
       if (uid)
         return false;
     }
   else if (!is_known_shell(shell))
     {
-      if (msg)
-	{
-	  if (asprintf(msg, "%s: '%s' is not listed as valid login shell.", uid?"Error":"Warning", shell) < 0)
-	    *msg = NULL;
-	}
+      if (asprintf(msg, "%s: '%s' is not listed as valid login shell.", uid?"Error":"Warning", shell) < 0)
+	*msg = NULL;
       if (uid)
 	return false;
     }
@@ -915,7 +904,7 @@ run_pam_chauthtok(void *arg)
   r = pam_chauthtok(pamh, p.flags);
   if (r != PAM_SUCCESS)
     {
-      pam_end (pamh, r);
+      pam_end(pamh, r);
       log_msg(LOG_ERR, "pam_chauthtok() failed: %s", pam_strerror(NULL, r));
       return broadcast_and_return(r);
     }
@@ -1107,9 +1096,9 @@ vl_method_conv(sd_varlink *link, sd_json_variant *parameters,
   else
     answer = NULL;
   got_answer = true;
-  pthread_mutex_unlock(&mut);
   /* inform PAM thread about answer */
   pthread_cond_broadcast(&cond);
+  pthread_mutex_unlock(&mut);
 
   /* wait for next PAM_PROMPT_ECHO_* message or exit */
   pthread_mutex_lock(&mut);
