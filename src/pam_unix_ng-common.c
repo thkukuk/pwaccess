@@ -48,7 +48,11 @@ parse_args(pam_handle_t *pamh, int flags, int argc, const char **argv,
 	  cfg->crypt_prefix = "$5$";
 	}
       else if (streq(val, "MD5"))
-	cfg->crypt_prefix = "$1$";
+	{
+	  // cfg->crypt_prefix = "$1$";
+	  pam_info(pamh, "MD5-based algorithms for password encryption are no longer supported!");
+	  pam_syslog(pamh, LOG_NOTICE, "ENCRYPT_METHOD from login.defs has no longer supported MD5 value");
+	}
       else if (streq(val, "BLOWFISH") || streq(val, "BCRYPT"))
 	cfg->crypt_prefix = "$2b$";
       else
@@ -88,9 +92,7 @@ parse_args(pam_handle_t *pamh, int flags, int argc, const char **argv,
 	    cfg->minlen = l;
 	}
       else if ((cp = startswith(*argv, "crypt_prefix=")) != NULL)
-	{
-	  cfg->crypt_prefix = cp;
-	}
+	cfg->crypt_prefix = cp;
       else if ((cp = startswith(*argv, "crypt_count=")) != NULL)
 	{
 	  char *ep;
