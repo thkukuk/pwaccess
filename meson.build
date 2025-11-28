@@ -246,11 +246,13 @@ if get_option('dump-privs')
 endif
 
 # example pam configuration files
-pamdchfnsrc = 'pam.d' / distribution / 'pwupd-chfn'
-pamdchshsrc = 'pam.d' / distribution / 'pwupd-chsh'
-pamdpasswdsrc = 'pam.d' / distribution / 'pwupd-passwd'
-install_data(pamdchfnsrc, install_dir : pamconfdir)
-install_data(pamdchshsrc, install_dir : pamconfdir)
+pamdpwupdchfnsrc = 'pam.d' / distribution / 'pwupd-chfn'
+pamdpwupdchshsrc = 'pam.d' / distribution / 'pwupd-chsh'
+pamdpwupdpasswdsrc = 'pam.d' / distribution / 'pwupd-passwd'
+pamdpasswdsrc = 'pam.d' / distribution / 'passwd'
+install_data(pamdpwupdchfnsrc, install_dir : pamconfdir)
+install_data(pamdpwupdchshsrc, install_dir : pamconfdir)
+install_data(pamdpwupdpasswdsrc, install_dir : pamconfdir)
 install_data(pamdpasswdsrc, install_dir : pamconfdir)
 
 # Unit tests
