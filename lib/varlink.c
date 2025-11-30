@@ -118,7 +118,8 @@ user_record_free(struct user_record *var)
 }
 
 int
-pwaccess_get_user_record(int64_t uid, const char *user, struct passwd **ret_pw, struct spwd **ret_sp,
+pwaccess_get_user_record(int64_t uid, const char *user,
+			 struct passwd **ret_pw, struct spwd **ret_sp,
 			 bool *complete, char **error)
 {
   _cleanup_(user_record_free) struct user_record p = {

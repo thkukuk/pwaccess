@@ -57,7 +57,7 @@ get_local_user_record(pam_handle_t *pamh, const char *user,
   while (r == 0)
     {
       r = fgetpwent_r(fp, &pw, pwbuf, pwbufsize, &pw_ptr);
-      if (ret_pw != NULL)
+      if (pw_ptr != NULL)
 	{
 	  if(streq(pw_ptr->pw_name, user))
 	    break;
@@ -84,7 +84,7 @@ get_local_user_record(pam_handle_t *pamh, const char *user,
   while (r == 0)
     {
       r = fgetspent_r(fp, &sp, spbuf, spbufsize, &sp_ptr);
-      if (ret_sp != NULL)
+      if (sp_ptr != NULL)
 	{
 	  if (streq(sp_ptr->sp_namp, user))
 	    break;
@@ -449,8 +449,7 @@ unix_chauthtok(pam_handle_t *pamh, int flags, struct config_t *cfg)
   r = get_local_user_record(pamh, user, &pw, &sp);
   if (r < 0)
     {
-      /* XXX double check return value */
-      if (r == -ENODATA)
+      if (r == -ENOENT)
 	{
 	  pam_syslog(pamh, LOG_ERR, "%s is no local user", user);
 	  pam_error(pamh, "You can only change local passwords.");
