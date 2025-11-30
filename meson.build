@@ -81,6 +81,7 @@ libpam_misc = dependency('pam_misc', required: true)
 libsystemd = dependency('libsystemd', version: '>= 257', required: true)
 libcrypt = dependency('libxcrypt', version: '>= 4.4.27', required: true)
 libeconf = dependency('libeconf', version : '>=0.7.5', required : true)
+libcap = dependency('libcap', required: get_option('tools'))
 libselinux = dependency('libselinux', required: get_option('selinux'))
 if libselinux.found()
   conf.set('WITH_SELINUX', 1)
@@ -241,8 +242,8 @@ subdir('include')
 # systemd units
 subdir('units')
 
-if get_option('dump-privs')
-  subdir('dump-privs')
+if get_option('tools')
+  subdir('tools')
 endif
 
 # example pam configuration files

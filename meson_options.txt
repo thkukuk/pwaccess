@@ -10,6 +10,6 @@ option('vendordir', type: 'string', value: '/usr/etc',
        description : 'directory for distribution provided config files (e.g. login.defs)')
 option('distribution', type : 'string',
        description : 'Name of used distribution: example, suse')   
-option('dump-privs', type: 'boolean', value: true,
-       description: 'Build dump-privs utility')
+option('tools', type: 'boolean', value: true,
+       description: 'Build additional utilities')
 
