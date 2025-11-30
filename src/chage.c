@@ -93,7 +93,7 @@ print_shadow_info (const char *user, struct spwd *sp, bool iso8601)
   if (sp == NULL)
     {
       fprintf(stderr, "ERROR: No shadow entry for user '%s' found.\n", user);
-      return ENOENT;
+      return ENODATA;
     }
 
   printf ("Last password change:\t\t");
@@ -399,7 +399,7 @@ main(int argc, char **argv)
   if (pw == NULL)
     {
       fprintf(stderr, "ERROR: Unknown user '%s'.\n", user);
-      return ENOENT;
+      return ENODATA;
     }
   if (!complete)
     {

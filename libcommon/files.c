@@ -109,7 +109,7 @@ close_and_rename(FILE **oldf, FILE **newf, int gotit, const char *tmpfn,
     {
       /* entry not found */
       unlink(tmpfn);
-      return -ENOENT;
+      return -ENODATA;
     }
 
   unlink(oldfn);

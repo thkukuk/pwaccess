@@ -449,7 +449,8 @@ unix_chauthtok(pam_handle_t *pamh, int flags, struct config_t *cfg)
   r = get_local_user_record(pamh, user, &pw, &sp);
   if (r < 0)
     {
-      if (r == -ENOENT)
+      /* XXX double check return value */
+      if (r == -ENODATA)
 	{
 	  pam_syslog(pamh, LOG_ERR, "%s is no local user", user);
 	  pam_error(pamh, "You can only change local passwords.");

@@ -523,7 +523,7 @@ main(int argc, char **argv)
   if (pw == NULL)
     {
       fprintf(stderr, "ERROR: Unknown user '%s'.\n", user);
-      return ENOENT;
+      return ENODATA;
     }
   if (!complete)
     {

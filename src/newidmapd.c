@@ -114,7 +114,7 @@ verify_ranges(uid_t uid, int nranges, const struct map_range *mappings, const ch
 
   struct passwd *pw = getpwuid(uid);
   if (pw == NULL)
-    return -ENOENT;
+    return -ENODATA;
   user = pw->pw_name;
 
   if (streq(map, "uid_map"))
@@ -144,7 +144,7 @@ verify_ranges(uid_t uid, int nranges, const struct map_range *mappings, const ch
 	log_msg(LOG_ERR, "Mapping range for user '%s' not found in %s", user, subid_file);
       else
 	log_msg(LOG_ERR, "Error retrieving key '%s': %s", user, econf_errString(error));
-      return -ENOENT;
+      return -ENODATA;
     }
 
   char *cp = strchr(val, ':');

@@ -220,7 +220,7 @@ main(int argc, char **argv)
       if (pw == NULL)
 	{
 	  fprintf(stderr, "User (%s) not found!\n", user);
-	  return ENOENT;
+	  return ENODATA;
 	}
 
       /* set old values */
