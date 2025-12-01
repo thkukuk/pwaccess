@@ -6,12 +6,10 @@ After=local-fs.target
 Environment="PWUPDD_OPTS="
 EnvironmentFile=-/etc/default/account-utils
 ExecStart=@LIBEXECDIR@/pwupdd $PWUPDD_OPTS
-IPAddressDeny=any
 LockPersonality=yes
 MemoryDenyWriteExecute=yes
 NoNewPrivileges=yes
 PrivateDevices=yes
-PrivateNetwork=yes
 PrivateTmp=yes
 ProtectClock=yes
 ProtectControlGroups=yes
@@ -23,8 +21,10 @@ ProtectProc=invisible
 ProtectSystem=strict
 RestrictRealtime=true
 ReadWritePaths=/run/account /etc
-RestrictAddressFamilies=AF_UNIX
 RestrictNamespaces=yes
 RestrictRealtime=yes
 RestrictSUIDSGID=yes
-
+# This don't work with NIS, LDAP, ...
+#IPAddressDeny=any
+#PrivateNetwork=yes
+#RestrictAddressFamilies=AF_UNIX
