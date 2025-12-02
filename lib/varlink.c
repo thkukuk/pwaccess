@@ -126,6 +126,7 @@ pwaccess_get_user_record(int64_t uid, const char *user,
     .success = false,
     .error = NULL,
     .account_name = NULL,
+    .complete = false,
     .content_passwd = NULL,
     .content_shadow = NULL,
   };
@@ -377,6 +378,9 @@ pwaccess_check_expired(const char *user, long *daysleft, bool *pwchangeable, cha
     .success = false,
     .error = NULL,
     .account_name = NULL,
+    .expired = 0,
+    .daysleft = -1,
+    .pwchangeable = true, /* if we don't get a no, no shadow information exist and thus it's changeable */
     .content_passwd = NULL,
     .content_shadow = NULL,
   };
@@ -456,7 +460,7 @@ pwaccess_check_expired(const char *user, long *daysleft, bool *pwchangeable, cha
       return 0;
     }
 
-  if (daysleft)
+  if (daysleft >= 0)
     *daysleft = p.daysleft;
 
   if (pwchangeable)
