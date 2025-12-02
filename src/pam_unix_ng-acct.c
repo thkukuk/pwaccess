@@ -53,17 +53,17 @@ acct_mgmt(pam_handle_t *pamh, struct config_t *cfg)
 	  r = getspnam_r(user, &spbuf, buf, bufsize, &sp);
 	  if (sp == NULL)
 	    {
-	      if (r == 0)
+	      if (r != 0)
 		{
-		  pam_syslog(pamh, LOG_INFO, "User '%s' not found", strna(valid_name(user) ? user : ""));
-		  return PAM_USER_UNKNOWN;
+		  pam_syslog(pamh, LOG_WARNING, "getspnam_r(): %s", strerror(r));
+		  pam_error(pamh, "getspnam_r(): %s", strerror(r));
+		  return PAM_SYSTEM_ERR;
 		}
-
-	      pam_syslog(pamh, LOG_WARNING, "getspnam_r(): %s", strerror(r));
-	      pam_error(pamh, "getspnam_r(): %s", strerror(r));
-	      return PAM_SYSTEM_ERR;
+	      else
+		r = PWA_EXPIRED_NO;
 	    }
-	  r = expired_check(sp, &daysleft, NULL /* pwchangeable */);
+	  else
+	    r = expired_check(sp, &daysleft, NULL /* pwchangeable */);
 	}
       else
 	return PAM_SYSTEM_ERR;
