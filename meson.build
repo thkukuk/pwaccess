@@ -158,7 +158,7 @@ executable('pwupdd',
 executable('newidmapd',
            newidmapd_c,
            include_directories : inc,
-           # link_with : [libcommon, libpwaccess],
+           link_with : [libpwaccess],
            dependencies : [libsystemd, libeconf],
            install_dir : libexecdir,
            install : true)

@@ -12,6 +12,7 @@
 #include "basics.h"
 #include "mkdir_p.h"
 #include "varlink-service-common.h"
+#include "pwaccess.h"
 
 #include "varlink-org.openSUSE.newidmapd.h"
 
@@ -103,19 +104,25 @@ verify_range(uid_t uid, int64_t start, int64_t count, const struct map_range map
    0 : range is valid
    1 : range is invalid */
 static int
-verify_ranges(uid_t uid, int nranges, const struct map_range *mappings, const char *map)
+verify_ranges(uid_t uid, int nranges, const struct map_range *mappings,
+	      const char *map)
 {
   const char *subid_file = NULL;
   _cleanup_(econf_freeFilep) econf_file *econf = NULL;
   econf_err error;
-  const char *user;
+  char *user;
+  _cleanup_free_ char *pwerror = NULL;
   _cleanup_free_ char *val = NULL;
   long start, count;
+  int r;
 
-  struct passwd *pw = getpwuid(uid);
-  if (pw == NULL)
-    return -ENODATA;
-  user = pw->pw_name;
+  r = pwaccess_get_account_name(uid, &user, &pwerror);
+  if (r < 0)
+    {
+      log_msg(LOG_ERR, "Cannot get account data for uid '%u': %s",
+	      uid, pwerror?pwerror:strerror(-r));
+      return r;
+    }
 
   if (streq(map, "uid_map"))
     subid_file = "/etc/subuid";
