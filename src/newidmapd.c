@@ -404,7 +404,7 @@ vl_method_write_mappings(sd_varlink *link, sd_json_variant *parameters,
     }
   if (r > 0)
     {
-      return sd_varlink_errorbo(link, "org.openSUSE.newidmapd.PermissingDenied",
+      return sd_varlink_errorbo(link, "org.openSUSE.newidmapd.PermissionDenied",
 				SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
 				SD_JSON_BUILD_PAIR_STRING("ErrorMsg", "Mapping ranges are not correct"));
     }
