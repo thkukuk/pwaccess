@@ -460,7 +460,7 @@ pwaccess_check_expired(const char *user, long *daysleft, bool *pwchangeable, cha
       return 0;
     }
 
-  if (daysleft >= 0)
+  if (daysleft && p.daysleft >= 0)
     *daysleft = p.daysleft;
 
   if (pwchangeable)
