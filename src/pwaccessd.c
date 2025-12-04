@@ -19,6 +19,7 @@
 #include "basics.h"
 #include "mkdir_p.h"
 #include "verify.h"
+#include "check_caller_perms.h"
 #include "varlink-service-common.h"
 
 #include "varlink-org.openSUSE.pwaccess.h"
@@ -206,10 +207,10 @@ vl_method_get_user_record(sd_varlink *link, sd_json_variant *parameters,
 
   /* Don't return password if query does not come from root
      and result is not the one of the calling user */
-  if (peer_uid != 0 && pw->pw_uid != peer_uid)
+  if (!check_caller_perms(peer_uid, pw->pw_uid, NULL /* XXX */))
     {
-      log_msg(LOG_DEBUG, "GetUserRecord: peer UID not 0 and UID not equal to peer UID (%i,%i)",
-	      peer_uid, pw->pw_uid);
+      log_msg(LOG_DEBUG, "Peer UID %u is not allowed to access data of '%s'",
+	  peer_uid, pw->pw_name);
       pw->pw_passwd = NULL;
       complete = false;
       /* no shadow entries for others */
@@ -349,16 +350,14 @@ vl_method_verify_password(sd_varlink *link, sd_json_variant *parameters,
   if (pw == NULL)
     return error_user_not_found(link, -1, p.name, errno);
 
-  /* Don't verify password if query does not come from root
-     and result is not the one of the calling user */
-  if (peer_uid != 0 && pw->pw_uid != peer_uid)
+  if (!check_caller_perms(peer_uid, pw->pw_uid, NULL /* XXX */))
     {
       _cleanup_free_ char *error = NULL;
 
-      if (asprintf(&error, "Peer UID (%i) not 0 and peer UID not equal to UID",
-		   peer_uid) < 0)
+      if (asprintf(&error, "Peer UID %u is not allowed to verify password of '%s'",
+		   peer_uid, p.name) < 0)
 	error = NULL;
-      log_msg(LOG_ERR, "VerifyPassword: %s", stroom(error));
+      log_msg(LOG_ERR, "%s", stroom(error));
       return sd_varlink_errorbo(link, "org.openSUSE.pwaccess.InternalError",
 				SD_JSON_BUILD_PAIR_BOOLEAN("Success", false),
 				SD_JSON_BUILD_PAIR_STRING("ErrorMsg", stroom(error)));
@@ -478,12 +477,12 @@ vl_method_expired_check(sd_varlink *link, sd_json_variant *parameters,
 
   /* Don't verify password if query does not come from root
      and result is not the one of the calling user */
-  if (peer_uid != 0 && pw->pw_uid != peer_uid)
+  if (!check_caller_perms(peer_uid, pw->pw_uid, NULL /* XXX */))
     {
       _cleanup_free_ char *error = NULL;
 
-      if (asprintf(&error, "Peer UID (%i) not 0 and peer UID not equal to UID",
-		   peer_uid) < 0)
+      if (asprintf(&error, "Peer UID %u is not allowed to access data of '%s'",
+		   peer_uid, p.name) < 0)
 	error = NULL;
       log_msg(LOG_ERR, "ExpiredCheck: %s", stroom(error));
       return sd_varlink_errorbo(link, "org.openSUSE.pwaccess.InternalError",

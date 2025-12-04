@@ -26,6 +26,7 @@
 #include "files.h"
 #include "verify.h"
 #include "chfn_checks.h"
+#include "check_caller_perms.h"
 
 #include "varlink-org.openSUSE.pwupd.h"
 
@@ -449,10 +450,10 @@ vl_method_chfn(sd_varlink *link, sd_json_variant *parameters,
 
   /* Don't change GECOS if query does not come from root
      and result is not the one of the calling user */
-  if (peer_uid != 0 && pw->pw_uid != peer_uid)
+  if (!check_caller_perms(peer_uid, pw->pw_uid, NULL /* XXX */))
     {
-      if (asprintf(&error, "Peer UID (%i) not 0 and peer UID not equal to UID",
-		   peer_uid) < 0)
+      if (asprintf(&error, "Peer UID %u is not allowed to access data of '%s'",
+		   peer_uid, p.name) < 0)
 	error = NULL;
       log_msg(LOG_ERR, "chfn: %s", stroom(error));
       parameters_free(&p);
@@ -780,12 +781,12 @@ vl_method_chsh(sd_varlink *link, sd_json_variant *parameters,
 
   /* Don't change shell if query does not come from root
      and result is not the one of the calling user */
-  if (peer_uid != 0 && pw->pw_uid != peer_uid)
+  if (!check_caller_perms(peer_uid, pw->pw_uid, NULL /* XXX */))
     {
       _cleanup_free_ char *error = NULL;
 
-      if (asprintf(&error, "Peer UID (%i) not 0 and peer UID not equal to UID",
-		   peer_uid) < 0)
+      if (asprintf(&error, "Peer UID %u is not allowed to access data of '%s'",
+		   peer_uid, p.name) < 0)
 	error = NULL;
       log_msg(LOG_ERR, "chsh: %s", stroom(error));
       parameters_free(&p);
@@ -988,12 +989,12 @@ vl_method_chauthtok(sd_varlink *link, sd_json_variant *parameters,
 
   /* Don't change password if query does not come from root
      and result is not the one of the calling user */
-  if (peer_uid != 0 && pw->pw_uid != peer_uid)
+  if (!check_caller_perms(peer_uid, pw->pw_uid, NULL /* XXX */))
     {
       _cleanup_free_ char *error = NULL;
 
-      if (asprintf(&error, "Peer UID (%i) not 0 and peer UID not equal to UID",
-		   peer_uid) < 0)
+      if (asprintf(&error, "Peer UID %u is not allowed to access data of '%s'",
+		   peer_uid, p.name) < 0)
 	error = NULL;
       log_msg(LOG_ERR, "chauthtok: %s", stroom(error));
       parameters_free(&p);
