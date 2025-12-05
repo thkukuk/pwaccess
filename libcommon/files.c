@@ -22,6 +22,8 @@
 
 #define MAX_LOCK_RETRIES 300 /* How often should we try to lock password file */
 
+typedef int (*update_account_file_cb)(FILE*, FILE*, void*);
+
 static int
 lock_db(void)
 {
@@ -81,101 +83,19 @@ mkostemp_safe(char *pattern)
     return r;
 }
 
+/* return value:
+   < 0 : error
+     0 : found, nothing changed
+     1 : entry changed
+*/
 static int
-close_and_rename(FILE **oldf, FILE **newf, int gotit, const char *tmpfn,
-		 const char *origfn, const char *oldfn)
+update_passwd_entry(FILE *oldf, FILE *newf, void *ctx)
 {
-  int r;
-
-  r = fclose(*oldf);
-  *oldf = NULL;
-  if (r < 0)
-    return -errno;
-
-  r = fflush(*newf);
-  if (r < 0)
-    return -errno;
-
-  r = fsync(fileno(*newf));
-  if (r < 0)
-    return -errno;
-
-  r = fclose(*newf);
-  *newf = NULL;
-  if (r < 0)
-    return -errno;
-
-  if (gotit == 0)
-    {
-      /* entry not found */
-      unlink(tmpfn);
-      return -ENODATA;
-    }
-
-  unlink(oldfn);
-  r = link(origfn, oldfn);
-  if (r < 0)
-    return -errno;
-
-  r = rename(tmpfn, origfn);
-  if (r < 0)
-    return -errno;
-
-  return 0;
-}
-
-static int
-update_passwd_locked(struct passwd *newpw, const char *etcdir)
-{
-  _cleanup_(unlink_and_free_tempfilep) char *tmpfn = NULL;
-  _cleanup_free_ char *passwd_orig = NULL;
-  _cleanup_free_ char *passwd_old = NULL;
-  _cleanup_close_ int newfd = -EBADF;
-  _cleanup_fclose_ FILE *oldf = NULL;
-  _cleanup_fclose_ FILE *newf = NULL;
-  struct passwd *pw; /* passwd struct obtained from fgetpwent() */
-  struct stat st;
-  int r;
-
-  assert(newpw);
-  assert(etcdir);
-
-  if (asprintf(&passwd_orig, "%s/passwd", etcdir) < 0)
-    return -ENOMEM;
-  if (asprintf(&passwd_old, "%s/passwd-", etcdir) < 0)
-    return -ENOMEM;
-  if (asprintf(&tmpfn, "%s/.passwd.XXXXXX", etcdir) < 0)
-    return -ENOMEM;
-
-  if ((oldf = fopen(passwd_orig, "r")) == NULL)
-    return -errno;
-
-  if (fstat(fileno(oldf), &st) < 0)
-    return -errno;
-
-  newfd = mkostemp_safe(tmpfn);
-  if (newfd < 0)
-    return newfd; /* newfd == -errno */
-
-  r = fchmod(newfd, st.st_mode);
-  if (r < 0)
-    return -errno;
-
-  r = fchown(newfd, st.st_uid, st.st_gid);
-  if (r < 0)
-    return -errno;
-
-#if 0 /* XXX */
-  r = copy_xattr(passwd_orig, passwd_tmp);
-  if (r > 0)
-    return -r;
-#endif
-
-  newf = fdopen(newfd, "w+");
-  if (newf == NULL)
-    return -errno;
-
+  struct passwd *pw;
+  struct passwd *newpw = ctx;
   int gotit = 0;
+  int r;
+
   /* Loop over all passwd entries */
   while ((pw = fgetpwent(oldf)) != NULL)
     {
@@ -216,140 +136,25 @@ update_passwd_locked(struct passwd *newpw, const char *etcdir)
 	return -errno;
     }
 
-  r = close_and_rename(&oldf, &newf, gotit, tmpfn, passwd_orig, passwd_old);
-  if (r < 0)
-    return r;
+  if (gotit == 0)
+    return -ENODATA;
 
-  return 0;
+  return gotit;
 }
 
-int
-update_passwd(struct passwd *newpw, const char *etcdir)
-{
-  _cleanup_free_ char *passwd_orig = NULL;
-#ifdef WITH_SELINUX
-  char *prev_context_raw = NULL;
-#endif
-  int r;
-
-  if (!newpw)
-    return -EINVAL;
-
-  if (isempty(etcdir))
-    etcdir = "/etc";
-
-  /* XXX adjust lock if etcdir is not /etc */
-  if (streq(etcdir, "/etc"))
-    {
-      r = lock_db();
-      if (r < 0)
-	return r;
-    }
-
-  /* XXX use old password to verify again, else some other process could
-   * have already changed the password meanwhile */
-
-  if (asprintf(&passwd_orig, "%s/passwd", etcdir) < 0)
-    return -ENOMEM;
-
-#ifdef WITH_SELINUX
-  if (SELINUX_ENABLED)
-    {
-      char *passwd_context_raw = NULL;
-
-      if (getfilecon_raw(passwd_orig, &passwd_context_raw) < 0)
-	return -errno;
-
-      if (getfscreatecon_raw(&prev_context_raw) < 0)
-	{
-	  int saved_errno = errno;
-	  freecon(passwd_context_raw);
-	  return -saved_errno;
-	}
-      if (setfscreatecon_raw(passwd_context_raw) < 0)
-	{
-	  int saved_errno = errno;
-	  freecon(passwd_context_raw);
-	  freecon(prev_context_raw);
-	  return -saved_errno;
-	}
-      freecon(passwd_context_raw);
-    }
-#endif
-
-  r = update_passwd_locked(newpw, etcdir);
-
-#ifdef WITH_SELINUX
-  if (SELINUX_ENABLED)
-    {
-      if (setfscreatecon_raw(prev_context_raw) < 0)
-	r = -errno;
-      freecon(prev_context_raw);
-    }
-#endif
-
-  /* XXX adjust lock if etcdir is not /etc */
-  if (streq(etcdir, "/etc"))
-    {
-      if (ulckpwdf() != 0)
-	return -errno;
-    }
-
-  return r;
-}
-
+/* return value:
+   < 0 : error
+     0 : found, nothing changed
+     1 : entry changed
+*/
 static int
-update_shadow_locked(struct spwd *newsp, const char *etcdir)
+update_shadow_entry(FILE *oldf, FILE *newf, void *ctx)
 {
-  _cleanup_(unlink_and_free_tempfilep) char *tmpfn = NULL;
-  _cleanup_free_ char *shadow_orig = NULL;
-  _cleanup_free_ char *shadow_old = NULL;
-  _cleanup_close_ int newfd = -EBADF;
-  _cleanup_fclose_ FILE *oldf = NULL;
-  _cleanup_fclose_ FILE *newf = NULL;
-  struct spwd *sp; /* shadow struct obtained from fgetspent() */
-  struct stat st;
+  struct spwd *sp;
+  struct spwd *newsp = ctx;
+  int gotit = 0;
   int r;
 
-  assert(newsp);
-  assert(etcdir);
-
-  if (asprintf(&shadow_orig, "%s/shadow", etcdir) < 0)
-    return -ENOMEM;
-  if (asprintf(&shadow_old, "%s/shadow-", etcdir) < 0)
-    return -ENOMEM;
-  if (asprintf(&tmpfn, "%s/.shadow.XXXXXX", etcdir) < 0)
-    return -ENOMEM;
-
-  if ((oldf = fopen(shadow_orig, "r")) == NULL)
-    return -errno;
-
-  if (fstat(fileno(oldf), &st) < 0)
-    return -errno;
-
-  newfd = mkostemp_safe(tmpfn);
-  if (newfd < 0)
-    return newfd; /* newfd == -errno */
-
-  r = fchmod(newfd, st.st_mode);
-  if (r < 0)
-    return -errno;
-
-  r = fchown(newfd, st.st_uid, st.st_gid);
-  if (r < 0)
-    return -errno;
-
-#if 0 /* XXX */
-  r = copy_xattr(shadow_orig, shadow_tmp);
-  if (r > 0)
-    return -r;
-#endif
-
-  newf = fdopen(newfd, "w+");
-  if (newf == NULL)
-    return -errno;
-
-  int gotit = 0;
   /* Loop over all shadow entries */
   while ((sp = fgetspent(oldf)) != NULL)
     {
@@ -370,24 +175,117 @@ update_shadow_locked(struct spwd *newsp, const char *etcdir)
 	}
     }
 
-  r = close_and_rename(&oldf, &newf, gotit, tmpfn, shadow_orig, shadow_old);
+  if (gotit == 0)
+    return -ENODATA;
+
+  return gotit;
+}
+
+static int
+update_account_locked(const char *etcdir, const char *name,
+		      update_account_file_cb update_account_entry,
+		      void *ctx)
+{
+  _cleanup_(unlink_and_free_tempfilep) char *tmpfn = NULL;
+  _cleanup_free_ char *origfn = NULL;
+  _cleanup_free_ char *oldfn = NULL;
+  _cleanup_close_ int newfd = -EBADF;
+  _cleanup_fclose_ FILE *oldf = NULL;
+  _cleanup_fclose_ FILE *newf = NULL;
+  struct stat st;
+  int r;
+
+  assert(etcdir);
+  assert(name);
+  assert(update_account_entry);
+  assert(ctx);
+
+  if (asprintf(&origfn, "%s/%s", etcdir, name) < 0)
+    return -ENOMEM;
+  if (asprintf(&oldfn, "%s/%s-", etcdir, name) < 0)
+    return -ENOMEM;
+  if (asprintf(&tmpfn, "%s/.%s.XXXXXX", etcdir, name) < 0)
+    return -ENOMEM;
+
+  if ((oldf = fopen(origfn, "r")) == NULL)
+    return -errno;
+
+  if (fstat(fileno(oldf), &st) < 0)
+    return -errno;
+
+  newfd = mkostemp_safe(tmpfn);
+  if (newfd < 0)
+    return newfd; /* newfd == -errno */
+
+  r = fchmod(newfd, st.st_mode);
   if (r < 0)
-    return r;
+    return -errno;
+
+  r = fchown(newfd, st.st_uid, st.st_gid);
+  if (r < 0)
+    return -errno;
+
+#if 0 /* XXX */
+  r = copy_xattr(passwd_orig, passwd_tmp);
+  if (r > 0)
+    return -r;
+#endif
+
+  newf = fdopen(newfd, "w+");
+  if (newf == NULL)
+    return -errno;
+
+  int gotit = update_account_entry(oldf, newf, ctx);
+  if (gotit < 0)
+    return gotit;
+
+  r = fclose(oldf);
+  oldf = NULL;
+  if (r < 0)
+    return -errno;
+
+  r = fflush(newf);
+  if (r < 0)
+    return -errno;
+
+  r = fsync(fileno(newf));
+  if (r < 0)
+    return -errno;
+
+  r = fclose(newf);
+  newf = NULL;
+  if (r < 0)
+    return -errno;
+
+  if (gotit == 0)
+    {
+      /* no changes */
+      unlink(tmpfn);
+      return 0;
+    }
+
+  unlink(oldfn);
+  r = link(origfn, oldfn);
+  if (r < 0)
+    return -errno;
+
+  r = rename(tmpfn, origfn);
+  if (r < 0)
+    return -errno;
 
   return 0;
 }
 
-int
-update_shadow(struct spwd *newsp, const char *etcdir)
+static int
+update_account(const char *etcdir, const char *name,
+	       update_account_file_cb update_account_entry,
+	       void *ctx)
 {
-  _cleanup_free_ char *shadow_orig = NULL;
+  _cleanup_free_ char *origfn = NULL;
 #ifdef WITH_SELINUX
   char *prev_context_raw = NULL;
 #endif
   int r;
-
-  if (!newsp)
-    return -EINVAL;
 
   if (isempty(etcdir))
     etcdir = "/etc";
@@ -403,35 +301,35 @@ update_shadow(struct spwd *newsp, const char *etcdir)
   /* XXX use old password to verify again, else some other process could
    * have already changed the password meanwhile */
 
-  if (asprintf(&shadow_orig, "%s/shadow", etcdir) < 0)
+  if (asprintf(&origfn, "%s/%s", etcdir, name) < 0)
     return -ENOMEM;
 
 #ifdef WITH_SELINUX
   if (SELINUX_ENABLED)
     {
-      char *shadow_context_raw = NULL;
+      char *context_raw = NULL;
 
-      if (getfilecon_raw(shadow_orig, &shadow_context_raw) < 0)
+      if (getfilecon_raw(origfn, &context_raw) < 0)
 	return -errno;
 
       if (getfscreatecon_raw(&prev_context_raw) < 0)
 	{
 	  int saved_errno = errno;
-	  freecon(shadow_context_raw);
+	  freecon(context_raw);
 	  return -saved_errno;
 	}
-      if (setfscreatecon_raw(shadow_context_raw) < 0)
+      if (setfscreatecon_raw(context_raw) < 0)
 	{
 	  int saved_errno = errno;
-	  freecon(shadow_context_raw);
+	  freecon(context_raw);
 	  freecon(prev_context_raw);
 	  return -saved_errno;
 	}
-      freecon(shadow_context_raw);
+      freecon(context_raw);
     }
 #endif
 
-  r = update_shadow_locked(newsp, etcdir);
+  r = update_account_locked(etcdir, name, update_account_entry, ctx);
 
 #ifdef WITH_SELINUX
   if (SELINUX_ENABLED)
@@ -450,4 +348,22 @@ update_shadow(struct spwd *newsp, const char *etcdir)
     }
 
   return r;
+}
+
+int
+update_passwd(struct passwd *newpw, const char *etcdir)
+{
+  if (!newpw)
+    return -EINVAL;
+
+  return update_account(etcdir, "passwd", update_passwd_entry, newpw);
+}
+
+int
+update_shadow(struct spwd *newsp, const char *etcdir)
+{
+  if (!newsp)
+    return -EINVAL;
+
+  return update_account(etcdir, "shadow", update_shadow_entry, newsp);
 }
