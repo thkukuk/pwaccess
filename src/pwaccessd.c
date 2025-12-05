@@ -21,6 +21,7 @@
 #include "verify.h"
 #include "check_caller_perms.h"
 #include "varlink-service-common.h"
+#include "read_config.h"
 
 #include "varlink-org.openSUSE.pwaccess.h"
 
@@ -28,6 +29,7 @@
 #define DEFAULT_EXIT_USEC (30*USEC_PER_SEC)
 
 static int socket_activation = false;
+static struct config_t cfg = { NULL, NULL, NULL };
 
 static int
 error_user_not_found(sd_varlink *link, int64_t uid, const char *name, int errcode)
@@ -207,7 +209,7 @@ vl_method_get_user_record(sd_varlink *link, sd_json_variant *parameters,
 
   /* Don't return password if query does not come from root
      and result is not the one of the calling user */
-  if (!check_caller_perms(peer_uid, pw->pw_uid, NULL /* XXX */))
+  if (!check_caller_perms(peer_uid, pw->pw_uid, cfg.allow_get_user_record))
     {
       log_msg(LOG_DEBUG, "Peer UID %u is not allowed to access data of '%s'",
 	  peer_uid, pw->pw_name);
@@ -350,7 +352,7 @@ vl_method_verify_password(sd_varlink *link, sd_json_variant *parameters,
   if (pw == NULL)
     return error_user_not_found(link, -1, p.name, errno);
 
-  if (!check_caller_perms(peer_uid, pw->pw_uid, NULL /* XXX */))
+  if (!check_caller_perms(peer_uid, pw->pw_uid, cfg.allow_verify_password))
     {
       _cleanup_free_ char *error = NULL;
 
@@ -477,7 +479,7 @@ vl_method_expired_check(sd_varlink *link, sd_json_variant *parameters,
 
   /* Don't verify password if query does not come from root
      and result is not the one of the calling user */
-  if (!check_caller_perms(peer_uid, pw->pw_uid, NULL /* XXX */))
+  if (!check_caller_perms(peer_uid, pw->pw_uid, cfg.allow_expired_check))
     {
       _cleanup_free_ char *error = NULL;
 
@@ -585,7 +587,7 @@ varlink_event_loop_with_idle(sd_event *e, sd_varlink_server *s)
 }
 
 static int
-run_varlink (void)
+run_varlink(void)
 {
   int r;
   _cleanup_(sd_event_unrefp) sd_event *event = NULL;
@@ -599,27 +601,27 @@ run_varlink (void)
       return r;
     }
 
-  r = sd_event_new (&event);
+  r = sd_event_new(&event);
   if (r < 0)
     {
-      log_msg (LOG_ERR, "Failed to create new event: %s",
-	       strerror (-r));
+      log_msg(LOG_ERR, "Failed to create new event: %s",
+	      strerror(-r));
       return r;
     }
 
-  r = sd_varlink_server_new (&varlink_server, SD_VARLINK_SERVER_ACCOUNT_UID|SD_VARLINK_SERVER_INHERIT_USERDATA|SD_VARLINK_SERVER_INPUT_SENSITIVE);
+  r = sd_varlink_server_new(&varlink_server, SD_VARLINK_SERVER_ACCOUNT_UID|SD_VARLINK_SERVER_INHERIT_USERDATA|SD_VARLINK_SERVER_INPUT_SENSITIVE);
   if (r < 0)
     {
-      log_msg (LOG_ERR, "Failed to allocate varlink server: %s",
-	       strerror (-r));
+      log_msg(LOG_ERR, "Failed to allocate varlink server: %s",
+	      strerror (-r));
       return r;
     }
 
-  r = sd_varlink_server_set_description (varlink_server, "pwaccessd");
+  r = sd_varlink_server_set_description(varlink_server, "pwaccessd");
   if (r < 0)
     {
-      log_msg (LOG_ERR, "Failed to set varlink server description: %s",
-	       strerror (-r));
+      log_msg(LOG_ERR, "Failed to set varlink server description: %s",
+	      strerror(-r));
       return r;
     }
 
@@ -635,15 +637,15 @@ run_varlink (void)
       return r;
     }
 
-  r = sd_varlink_server_bind_method_many (varlink_server,
-					  "org.openSUSE.pwaccess.GetAccountName", vl_method_get_account_name,
-					  "org.openSUSE.pwaccess.GetUserRecord",  vl_method_get_user_record,
-					  "org.openSUSE.pwaccess.VerifyPassword", vl_method_verify_password,
-					  "org.openSUSE.pwaccess.ExpiredCheck",   vl_method_expired_check,
-					  "org.openSUSE.pwaccess.GetEnvironment", vl_method_get_environment,
-					  "org.openSUSE.pwaccess.Ping",           vl_method_ping,
-					  "org.openSUSE.pwaccess.Quit",           vl_method_quit,
-					  "org.openSUSE.pwaccess.SetLogLevel",    vl_method_set_log_level);
+  r = sd_varlink_server_bind_method_many(varlink_server,
+					 "org.openSUSE.pwaccess.GetAccountName", vl_method_get_account_name,
+					 "org.openSUSE.pwaccess.GetUserRecord",  vl_method_get_user_record,
+					 "org.openSUSE.pwaccess.VerifyPassword", vl_method_verify_password,
+					 "org.openSUSE.pwaccess.ExpiredCheck",   vl_method_expired_check,
+					 "org.openSUSE.pwaccess.GetEnvironment", vl_method_get_environment,
+					 "org.openSUSE.pwaccess.Ping",           vl_method_ping,
+					 "org.openSUSE.pwaccess.Quit",           vl_method_quit,
+					 "org.openSUSE.pwaccess.SetLogLevel",    vl_method_set_log_level);
   if (r < 0)
     {
       log_msg(LOG_ERR, "Failed to bind Varlink methods: %s",
@@ -651,19 +653,19 @@ run_varlink (void)
       return r;
     }
 
-  sd_varlink_server_set_userdata (varlink_server, event);
+  sd_varlink_server_set_userdata(varlink_server, event);
 
-  r = sd_varlink_server_attach_event (varlink_server, event, SD_EVENT_PRIORITY_NORMAL);
+  r = sd_varlink_server_attach_event(varlink_server, event, SD_EVENT_PRIORITY_NORMAL);
   if (r < 0)
     {
-      log_msg (LOG_ERR, "Failed to attach to event: %s", strerror (-r));
+      log_msg(LOG_ERR, "Failed to attach to event: %s", strerror(-r));
       return r;
     }
 
-  r = sd_varlink_server_listen_auto (varlink_server);
+  r = sd_varlink_server_listen_auto(varlink_server);
   if (r < 0)
     {
-      log_msg (LOG_ERR, "Failed to listen: %s", strerror (-r));
+      log_msg (LOG_ERR, "Failed to listen: %s", strerror(-r));
       return r;
     }
 
@@ -673,7 +675,7 @@ run_varlink (void)
       r = sd_varlink_server_listen_address(varlink_server, _VARLINK_PWACCESS_SOCKET, 0666);
       if (r < 0)
 	{
-	  log_msg (LOG_ERR, "Failed to bind to Varlink socket: %s", strerror (-r));
+	  log_msg(LOG_ERR, "Failed to bind to Varlink socket: %s", strerror(-r));
 	  return r;
 	}
     }
@@ -689,7 +691,7 @@ run_varlink (void)
 }
 
 static void
-print_help (void)
+print_help(void)
 {
   printf("pwaccessd - manage passwd and shadow\n");
 
@@ -701,8 +703,10 @@ print_help (void)
 }
 
 int
-main (int argc, char **argv)
+main(int argc, char **argv)
 {
+  // read_config(&cfg);
+
   while (1)
     {
       int c;

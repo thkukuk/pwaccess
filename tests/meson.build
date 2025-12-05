@@ -18,3 +18,10 @@ tst_update_passwd_exe = executable('tst-update_passwd', 'tst-update_passwd.c',
                         c_args: test_args)
 test('tst-update_passwd', tst_update_passwd_exe)
 
+tst_read_config_exe = executable('tst-read_config', 'tst-read_config.c',
+		        '../libcommon/read_config.c',
+                        include_directories : [inc, srcdir],
+			link_with : [libcommon],
+                        dependencies : [libeconf],
+                        c_args: ['-DTESTSDIR="' + testdir + 'tst-read_config-data' + '"'])
+test('tst-read_config', tst_read_config_exe)

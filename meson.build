@@ -121,6 +121,7 @@ libcommon_c = files('libcommon/chauthtok.c',
                     'libcommon/get_logindefs.c',
                     'libcommon/mkdir_p.c',
                     'libcommon/no_new_privs.c',
+                    'libcommon/read_config.c',
                     'libcommon/string-util-fundamental.c',
                     'libcommon/varlink-client-common.c',
                     'libcommon/verify.c')
@@ -144,7 +145,7 @@ executable('pwaccessd',
            pwaccessd_c,
            include_directories : inc,
 	   link_with : [libcommon],
-           dependencies : [libsystemd, libcrypt],
+           dependencies : [libsystemd, libcrypt, libeconf],
            install_dir : libexecdir,
            install : true)
 
