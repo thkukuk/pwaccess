@@ -18,5 +18,7 @@ main(int argc _unused_, char **argv _unused_)
       return error;
     }
 
+  /* XXX check values */
+
   return 0;
 }

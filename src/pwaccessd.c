@@ -705,7 +705,11 @@ print_help(void)
 int
 main(int argc, char **argv)
 {
-  // read_config(&cfg);
+  econf_err error = read_config(&cfg);
+
+  if (error != ECONF_SUCCESS)
+    log_msg(LOG_NOTICE, "Error reading config file: %s",
+	    econf_errString(error));
 
   while (1)
     {
