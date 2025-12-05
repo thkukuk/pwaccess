@@ -58,15 +58,21 @@ parse_token(const char *token, uid_t *result_uid)
     }
   else /* Try as username */
     {
-      struct passwd *pwd = getpwnam(token);
-      if (pwd != NULL)
+      struct passwd *pwd;
+
+      errno = 0;
+      pwd = getpwnam(token);
+      if (pwd == NULL)
 	{
-	  *result_uid = pwd->pw_uid;
-	  return 0;
+	  if (errno == 0)
+	    return -ENODATA;
+	  else
+	    return -errno;
 	}
-      /* return errno from getwnam() */
-      return -errno;
+
+      *result_uid = pwd->pw_uid;
     }
+  return 0;
 }
 
 static econf_err
@@ -126,6 +132,8 @@ lookup_group(econf_file *key_file, const char *group, uid_t **list)
       uids[count++] = uid;
     }
   uids[count] = 0;
+
+  *list = TAKE_PTR(uids);
 
   return ECONF_SUCCESS;
 }
