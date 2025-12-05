@@ -53,8 +53,6 @@ struct user_record {
   int expired;
   long daysleft;
   char *account_name;
-  struct passwd *pw;
-  struct spwd *sp;
   sd_json_variant *content_passwd;
   sd_json_variant *content_shadow;
 };
@@ -160,6 +158,12 @@ pwaccess_get_user_record(int64_t uid, const char *user,
   if (r < 0)
     return r;
 
+  if (uid < 0 && user == NULL)
+    {
+      fprintf(stderr, "Invalid combination of UID and user name provided (-1 and NULL)\n");
+      return -EINVAL;
+    }
+
   if (uid >= 0)
     r = sd_json_variant_merge_objectbo(&params, SD_JSON_BUILD_PAIR_INTEGER("uid", uid));
   if (r >= 0 && user)
@@ -232,6 +236,7 @@ pwaccess_get_user_record(int64_t uid, const char *user,
       return r;
     }
 
+  /* XXX the following code does not work on 32bit archs (long no int64)! */
   if (!sd_json_variant_is_null(p.content_shadow) && sd_json_variant_elements(p.content_shadow) > 0)
     {
       static const sd_json_dispatch_field dispatch_shadow_table[] = {
@@ -457,7 +462,7 @@ pwaccess_check_expired(const char *user, long *daysleft, bool *pwchangeable, cha
     {
       if (error)
 	*error = TAKE_PTR(p.error);
-      return 0;
+      return -EPROTO;
     }
 
   if (daysleft && p.daysleft >= 0)
